@@ -605,6 +605,73 @@ input {
   text-shadow: var(--glow);
 }
 
+.rate-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+
+/* "시계": the current time over the landscape */
+.clock-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* the slow drift that spares the screen */
+  transition: transform 2s linear;
+}
+.clock.now {
+  font-size: clamp(76px, 14vw, 176px);
+}
+.clock.now .period {
+  align-self: center;
+  white-space: nowrap;
+  margin-right: 0.12em;
+  font-family: var(--font-ui);
+  font-size: 0.2em;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+.clock.now .sec {
+  margin-left: 0.1em;
+  font-size: 0.28em;
+  color: var(--ink-soft);
+  width: 1.3em;
+}
+.clock-date {
+  margin: 10px 0 0;
+  font-size: clamp(14px, 1.6vw, 18px);
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  text-shadow: var(--glow);
+}
+.clock-tools {
+  margin-top: 22px;
+}
+.stage.clock-mode .topbar,
+.stage.clock-mode .world-info,
+.stage.clock-mode .scroll-hint,
+.stage.clock-mode .clock-tools {
+  transition: opacity 1.2s var(--ease);
+}
+/* after a few quiet seconds only the time stays */
+.stage.calm {
+  cursor: none;
+}
+.stage.calm .topbar,
+.stage.calm .world-info,
+.stage.calm .scroll-hint,
+.stage.calm .clock-tools {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .progress {
   width: min(240px, 60vw);
   height: 3px;
@@ -1149,7 +1216,13 @@ input {
   }
   .seg button {
     min-height: 36px;
-    padding: 0 12px;
+    padding: 0 8px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  /* theme and mode switches share one row on a phone: words only, never broken */
+  .seg button svg {
+    display: none;
   }
   .center {
     top: 33%;

@@ -15,6 +15,7 @@ import {
   cosmosOrigin,
   createNewWorld,
   finish,
+  focusTime,
   newUniverse,
   withCosmosOrigin,
   pause,
@@ -139,6 +140,10 @@ export class TimerEngine {
   worldTime(now = this.nowFn()): number {
     return worldTime(this.state, now);
   }
+  /** Real focus time (the world time without growth speeds). */
+  focusTime(now = this.nowFn()): number {
+    return focusTime(this.state, now);
+  }
   sessionElapsed(now = this.nowFn()): number {
     return this.state.session ? sessionElapsed(this.state.session, now) : 0;
   }
@@ -157,10 +162,12 @@ export class TimerEngine {
       // a duplicate start (e.g. from a stale tab) changes nothing
       if (s.session && s.session.status !== 'completed') return s;
       const mode = s.settings.mode;
+      // the clock shows the time only: no session, no growth
+      if (mode === 'clock') return s;
       const targetMs = mode === 'countdown' ? (opts?.targetMs ?? s.settings.countdownMs) : null;
       const base = s.session?.status === 'completed' ? continueAfter(s) : s;
       const settings = mode === 'countdown' && targetMs ? { ...base.settings, countdownMs: targetMs } : base.settings;
-      const started = start({ ...base, settings }, now, { mode, targetMs });
+      const started = start({ ...base, settings }, now, { mode, targetMs, rate: s.settings.growthRate });
       // an invalid target keeps the previous state (and its summary) untouched
       return started.session && started.session.status === 'running' && started !== base ? started : s;
     });

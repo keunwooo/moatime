@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { summarize } from '../../core/describe';
-import type { Persisted } from '../../core/session';
+import { sessionRate, type Persisted } from '../../core/session';
 import { engine } from '../runtime';
 import { simRunner } from '../sim';
 import { CloseIcon } from './Icons';
@@ -14,7 +14,7 @@ export function Summary({ state }: { state: Persisted }) {
     const r = simRunner(theme);
     const start = Math.max(sess.worldMsAtStart, state.world.base.W);
     const before = r.stateAt(start);
-    const after = r.stateAt(Math.max(start, sess.worldMsAtStart + sess.accruedMs));
+    const after = r.stateAt(Math.max(start, sess.worldMsAtStart + sess.accruedMs * sessionRate(sess)));
     return summarize(theme, state, sess, before, after);
   }, [theme, state, sess]);
   const [folded, setFolded] = useState(false);

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { MotionPref, Persisted, ThemeId, Mode } from '../../core/session';
+import { GROWTH_RATES, sessionRate, type MotionPref, type Persisted, type ThemeId, type ViewMode } from '../../core/session';
 import type { EffectLevel } from '../../sim/config';
+import { rateWord } from '../../core/describe';
 import { engine } from '../runtime';
 import { sound } from '../../audio/sound';
 import { BellIcon, DotsIcon, LeafIcon, MoonIcon, MotionIcon, SoundIcon, SpiralIcon, SproutMark } from './Icons';
@@ -112,12 +113,14 @@ export function TopBar({ state, onNewWorld, onNewUniverse }: Props) {
           ]}
           onChange={(theme) => void engine.updateSettings({ theme })}
         />
-        <Segmented<Mode>
+        <Segmented<ViewMode>
           label="타이머 모드"
+          className="seg-mode"
           value={s.mode}
           options={[
             { value: 'countdown', label: '카운트다운' },
             { value: 'stopwatch', label: '스톱워치' },
+            { value: 'clock', label: '시계' },
           ]}
           disabled={inSession}
           disabledHint="세션 중에는 모드를 바꿀 수 없어요"
@@ -141,6 +144,25 @@ export function TopBar({ state, onNewWorld, onNewUniverse }: Props) {
           </button>
           {menu && (
             <div className="menu" role="menu">
+              <div className="menu-group" role="group" aria-label="성장 속도">
+                <div className="menu-label">
+                  성장 속도{' '}
+                  <small>
+                    {inSession && state.session && sessionRate(state.session) !== s.growthRate
+                      ? `다음 세션부터 ${rateWord(s.growthRate)} 자라요 (지금 세션은 ×${sessionRate(state.session)})`
+                      : s.growthRate === 1
+                        ? '집중한 시간만큼 자라요'
+                        : `집중한 시간의 ${s.growthRate}배만큼 자라요`}
+                  </small>
+                </div>
+                <div className="menu-seg">
+                  {GROWTH_RATES.map((r) => (
+                    <button key={r} type="button" role="menuitemradio" aria-checked={s.growthRate === r} className={s.growthRate === r ? 'on' : ''} onClick={() => void engine.updateSettings({ growthRate: r })}>
+                      ×{r}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="menu-group" role="group" aria-label="애니메이션">
                 <div className="menu-label">애니메이션</div>
                 {(

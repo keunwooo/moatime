@@ -1,7 +1,7 @@
 /** Words for the status line, the session summary and the footer (from the simulation). */
 
-import { formatDurationKo } from './duration';
-import type { Persisted, Session, Status, ThemeId } from './session';
+import { formatDurationKo, timeStats } from './duration';
+import { sessionRate, type Persisted, type Session, type Status, type ThemeId } from './session';
 import type { ForestSim } from '../sim/forest';
 import type { SpaceSim } from '../sim/space';
 import type { CosmosSim } from '../sim/cosmos';
@@ -52,14 +52,32 @@ export interface SessionSummary {
   lines: string[];
 }
 
+/** The line a faster session adds to its summary (none at ×1). */
+export function rateLine(sess: Session): string | null {
+  const rate = sessionRate(sess);
+  if (rate === 1) return null;
+  // the growth of the time as shown (whole seconds, or whole minutes past an hour), so the sum adds up
+  const short = sess.accruedMs < 3600_000;
+  const unit = short ? 1000 : 60_000;
+  const shown = Math.floor(sess.accruedMs / unit) * unit;
+  const grown = shown * rate;
+  return `${formatDurationKo(shown, { seconds: short })} 집중했고, 풍경은 ${rateWord(rate)} ${formatDurationKo(grown, { seconds: grown < 3600_000 })}만큼 자랐어요.`;
+}
+
+/** "×5로", "×10으로" (the number as it is read). */
+export function rateWord(rate: number): string {
+  return `×${rate}${rate === 10 ? '으로' : '로'}`;
+}
+
 export function summarize(theme: ThemeId, s: Persisted, sess: Session, before: AnySim, after: AnySim): SessionSummary {
+  const rl = rateLine(sess);
   if (theme === 'cosmos') {
-    const c = cosmosSummary(before as CosmosSim, after as CosmosSim, sess.worldMsAtStart, sess.worldMsAtStart + sess.accruedMs);
+    const c = cosmosSummary(before as CosmosSim, after as CosmosSim, sess.worldMsAtStart, sess.worldMsAtStart + sess.accruedMs * sessionRate(sess));
     return {
       title: c.title,
       added: formatDurationKo(sess.accruedMs, { seconds: sess.accruedMs < 3600_000 }),
       world: formatDurationKo(s.world.bankedMs),
-      lines: c.lines,
+      lines: rl ? [rl, ...c.lines] : c.lines,
     };
   }
   const n = NOUN[theme];
@@ -96,6 +114,7 @@ export function summarize(theme: ThemeId, s: Persisted, sess: Session, before: A
   if (zones > 0) lines.push(`새 ${n.zone} ${zones}곳이 이어졌어요.`);
   else if (clusters > 0) lines.push(`${n.cluster} ${clusters}곳이 모습을 갖췄어요.`);
   if (!lines.length) lines.push(theme === 'forest' ? '숲지기가 공터를 가꾸며 다음 성장을 준비했어요.' : '작업 드론이 다음 공사를 준비했어요.');
+  if (rl) lines.unshift(rl);
   return {
     title: theme === 'forest' ? '오늘의 시간이 숲에 남았어요.' : '오늘의 시간이 기지에 남았어요.',
     added: formatDurationKo(sess.accruedMs, { seconds: sess.accruedMs < 3600_000 }),
@@ -104,10 +123,10 @@ export function summarize(theme: ThemeId, s: Persisted, sess: Session, before: A
   };
 }
 
-export function worldStats(theme: ThemeId, W: number, sim: AnySim): string {
-  if (theme === 'cosmos') return cosmosStats(sim as CosmosSim, W);
+export function worldStats(theme: ThemeId, W: number, sim: AnySim, focus: number = W): string {
+  if (theme === 'cosmos') return cosmosStats(sim as CosmosSim, W, focus);
   const n = NOUN[theme];
-  const parts = [`누적 ${formatDurationKo(W)}`];
+  const parts = [timeStats(W, focus)];
   const units = sim.done;
   const zones = Math.floor(units / RULES_UNITS_PER_ZONE);
   const clusters = Math.floor(units / RULES_UNITS_PER_CLUSTER);

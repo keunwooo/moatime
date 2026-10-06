@@ -122,3 +122,11 @@ export function formatDurationKo(ms: number, opts: { seconds?: boolean } = {}): 
 export function spokenDuration(ms: number): string {
   return formatDurationKo(ms, { seconds: true });
 }
+
+/**
+ * The footer's time: `누적 W`, or `집중 F · 풍경 W` once a growth speed above ×1 has made the
+ * two differ (by more than a second).
+ */
+export function timeStats(W: number, focus: number = W): string {
+  return W - focus > 1000 ? `집중 ${formatDurationKo(focus)} · 풍경 ${formatDurationKo(W)}` : `누적 ${formatDurationKo(W)}`;
+}
