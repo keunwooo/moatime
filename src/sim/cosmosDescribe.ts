@@ -7,6 +7,10 @@ import { formatDurationKo } from '../core/duration';
 import {
   ageOf,
   CHRON,
+  CIV_LEVEL_NAMES,
+  civLevel,
+  homeColonies,
+  rivalsAt,
   cometTimes,
   fieldStars,
   COSMOS_STAGE_NAMES,
@@ -25,7 +29,7 @@ import {
   type CosmosSim,
   type MilestoneId,
 } from './cosmos';
-import { constellationName, constellationOf, constellationRecords, cosmosHeadlineAt, SPACE_WEATHER_NAMES, spaceWeatherAt } from '../world/cosmos';
+import { constellationName, constellationOf, constellationRecords, cosmosHeadlineAt, cosmosSights, SPACE_WEATHER_NAMES, spaceWeatherAt } from '../world/cosmos';
 import { currentPace } from '../world/pace';
 import type { DetailRow } from './describe';
 
@@ -47,6 +51,19 @@ export const COSMOS_TEXT: Record<string, { name: string; line: string }> = {
   'ms:life': { name: '생명', line: '바다에 처음으로 초록빛이 번졌어요.' },
   'ms:coreAwake': { name: '은하 핵 각성', line: '은하의 중심이 깨어나 가는 빛줄기를 뿜어요.' },
   'ms:firstLights': { name: '첫 불빛', line: '행성의 밤면에 작은 불빛이 켜졌어요. 누군가 하늘을 올려다봐요.' },
+  'ms:station': { name: '궤도 정거장', line: '생명의 행성 둘레에 궤도 정거장이 생겼어요.' },
+  'ms:moonBase': { name: '달 기지', line: '달에 불빛이 켜졌어요. 첫 달 기지예요.' },
+  'ms:mining': { name: '소행성대 채굴', line: '작은 배들이 소행성대로 자원을 캐러 가요.' },
+  'ms:terraform': { name: '테라포밍', line: '안쪽 행성에 대기가 생기며 조금씩 푸르게 물들어요.' },
+  'ms:giantMoons': { name: '위성 도시', line: '가스 행성의 위성에 도시 불빛이 켜졌어요.' },
+  'ms:interstellar': { name: '성간 항해', line: '첫 성간선이 다른 별을 향해 떠나요.' },
+  'ms:firstColony': { name: '첫 식민지', line: '다른 별에 첫 식민지가 생겼어요.' },
+  'ms:contact': { name: '첫 만남', line: '먼 별에서 다른 문명을 만났어요.' },
+  'ms:dyson': { name: '별의 고리', line: '집의 별 둘레에 빛을 모으는 고리가 놓이기 시작해요.' },
+  meteorShower: { name: '유성우', line: '유성우가 쏟아져요.' },
+  battle: { name: '함대 충돌', line: '다른 문명의 함대와 우리 함대가 맞부딪쳤어요.' },
+  fleet: { name: '식민 함대', line: '식민 함대가 새 별을 향해 떠나요.' },
+  convoy: { name: '교역 선단', line: '교역 선단이 별과 별 사이를 오가요.' },
   bigComet: { name: '대혜성', line: '큰 혜성이 긴 꼬리를 끌며 지나가요.' },
   kilonova: { name: '킬로노바', line: '별 두 개가 합쳐지며 금이 만들어졌어요.' },
   roguePlanet: { name: '떠돌이 행성', line: '떠돌이 행성이 별빛을 가리며 지나가요.' },
@@ -164,6 +181,16 @@ export function cosmosDetailRows(s: CosmosSim, W: number): DetailRow[] {
   }
   if (s.totals.stars > 0) rows.push({ label: '별과 행성', value: `별 ${s.totals.stars}개 · 행성 ${s.totals.planets}개 · 초신성 ${s.totals.supernovae}번` });
   if (A >= LIFE.oceanStart - LIFE.cometFlightMs) rows.push({ label: '생명의 행성', value: `바다 ${Math.round(oceanAt(s.seed, A) * 100)}%${A >= LIFE.life ? ' · 생명' : ''}${A >= LIFE.lights ? ' · 불빛' : ''}` });
+  const lvl = civLevel(s.seed, A);
+  if (lvl > 0) {
+    const colonies = homeColonies(s.seed, A).length;
+    const rivals = rivalsAt(s.seed, A).length;
+    const battles = cosmosSights(s.seed, s.origin, currentPace()).filter((e) => e.kind === 'battle' && e.t0 <= W).length;
+    rows.push({
+      label: '문명',
+      value: `${CIV_LEVEL_NAMES[lvl]}${colonies ? ` · 식민지 ${colonies}곳` : ''}${rivals ? ` · 다른 문명 ${rivals}곳` : ''}${battles ? ` · 충돌 ${battles}번` : ''}`,
+    });
+  }
   if (A >= CHRON.end) rows.push({ label: '우주 날씨', value: SPACE_WEATHER_NAMES[spaceWeatherAt(s.seed, A).id] });
   if (next) rows.push({ label: '다음 이정표', value: `${MILESTONE_NAME(next.id)} · ${ago(next.A - A)} 뒤` });
   if (passed.length) rows.push({ label: '우주 연표', value: passed.slice(-3).map((m) => `${MILESTONE_NAME(m.id)} ${ago(m.A)}`).join(' · ') });
@@ -193,6 +220,10 @@ export function cosmosSummary(before: CosmosSim, after: CosmosSim, w0: number, w
   const planets = after.totals.planets - before.totals.planets;
   if (stars > 0) lines.push(`새 별 ${stars}개가 켜졌어요.`);
   if (planets > 0) lines.push(`새 행성 ${planets}개가 생겼어요.`);
+  const colonies = homeColonies(seed, a1).length - homeColonies(seed, a0).length;
+  if (colonies > 0) lines.push(`다른 별에 식민지 ${colonies}곳이 생겼어요.`);
+  const battles = cosmosSights(seed, after.origin, currentPace()).filter((e) => e.kind === 'battle' && e.t0 >= w0 && e.t0 < w1).length;
+  if (battles > 0) lines.push(`다른 문명의 함대와 ${battles}번 맞부딪쳤어요.`);
   const s0 = cosmosStage(seed, a0);
   const s1 = cosmosStage(seed, a1);
   if (s1 > s0) lines.push(`우주가 ${s0}단계에서 ${s1}단계(${COSMOS_STAGE_NAMES[s1]})로 자랐어요.`);

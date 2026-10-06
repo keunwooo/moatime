@@ -23,6 +23,8 @@ export class SkyEvents {
   private cloud: Sprite;
   private rogue: Sprite;
   private rogueRim: Sprite;
+  private shower: Sprite[];
+  private showerHeads: Sprite[];
   private meteor: Sprite;
   private meteorAt = -1;
   private meteorNext = 0;
@@ -53,13 +55,15 @@ export class SkyEvents {
     this.rogue.tint = 0x0c0a1c;
     this.rogueRim = sp(tex.rim);
     this.rogueRim.tint = N.ember;
+    this.shower = Array.from({ length: 24 }, () => sp(tex.streak, true, 1, 0.5));
+    this.showerHeads = this.shower.map(() => sp(tex.glow));
     this.meteor = sp(tex.streak, true, 1, 0.5);
     this.rock = sp(tex.inner, false);
-    this.root.addChild(this.cloud, this.ring, this.tail, this.ion, this.head, this.flash, ...this.beams, this.bridge, ...this.small, this.rogue, this.rogueRim, this.meteor, this.rock);
+    this.root.addChild(this.cloud, this.ring, this.tail, this.ion, this.head, this.flash, ...this.beams, this.bridge, ...this.small, this.rogue, this.rogueRim, ...this.shower, ...this.showerHeads, this.meteor, this.rock);
   }
 
   update(f: CosmosFrame) {
-    for (const s of [this.head, this.tail, this.ion, this.flash, this.ring, ...this.beams, ...this.small, this.bridge, this.cloud, this.rogue, this.rogueRim]) s.visible = false;
+    for (const s of [this.head, this.tail, this.ion, this.flash, this.ring, ...this.beams, ...this.small, this.bridge, this.cloud, this.rogue, this.rogueRim, ...this.shower, ...this.showerHeads]) s.visible = false;
     const { w, h } = f;
     const band = f.L.band;
     const wide = f.aspect === 'wide';
@@ -73,7 +77,7 @@ export class SkyEvents {
       const p = co.p;
       const x = lerp(ltr ? -0.08 : 1.08, ltr ? 1.08 : -0.08, p) * w;
       const y = (band[0] + (band[1] - band[0]) * (0.3 + 0.5 * hash01(co.seed, 2)) + Math.sin(p * Math.PI) * 0.03) * h;
-      const sz = w * (big ? 0.018 : 0.01);
+      const sz = w * (big ? 0.024 : 0.014);
       // nearer the star (lower on screen), brighter
       const bright = 0.75 + 0.25 * Math.sin(p * Math.PI);
       const away = Math.atan2(y - home.y, x - home.x);
@@ -100,11 +104,11 @@ export class SkyEvents {
       const y = (wide ? 0.1 + 0.4 * hash01(sn.seed, 5) : band[0] + 0.05 * hash01(sn.seed, 5)) * h;
       const p = sn.p;
       this.flash.position.set(x, y);
-      this.flash.width = this.flash.height = w * 0.05;
+      this.flash.width = this.flash.height = w * 0.085;
       this.flash.tint = N.emberCore;
-      vis(this.flash, 0.6 * env(0, 0.06, 0.1, 0.3, p));
+      vis(this.flash, 0.7 * env(0, 0.06, 0.1, 0.3, p));
       this.ring.position.set(x, y);
-      this.ring.width = this.ring.height = w * 0.07 * easeOut(p * 1.3);
+      this.ring.width = this.ring.height = w * 0.12 * easeOut(p * 1.3);
       this.ring.tint = hash01(sn.seed, 6) > 0.5 ? N.teal : N.rose;
       vis(this.ring, 0.55 * sm(0.04, 0.12, p) * (1 - sm(0.6, 1, p)));
     }
@@ -209,7 +213,62 @@ export class SkyEvents {
       vis(this.rogueRim, 0.3 * env(0, 0.05, 0.95, 1, ro.p));
     }
 
+    this.meteorShower(f);
     this.ambient(f);
+  }
+
+  /** A meteor shower: streaks from one radiant above the sky, thickest at its peak, never over the timer. */
+  private meteorShower(f: CosmosFrame) {
+    const ms = eventIs(f, 'meteorShower');
+    if (!ms || !f.event) return;
+    const { w, h } = f;
+    const dur = (f.event.t1 - f.event.t0) / 1000;
+    const secs = ms.p * dur;
+    const rx = (0.2 + 0.6 * hash01(ms.seed, 21)) * w;
+    const ry = -0.3 * h;
+    const [tx0, ty0, tx1, ty1] = f.L.timer;
+    const inTimer = (x: number, y: number) => x > tx0 - 0.03 && x < tx1 + 0.03 && y > ty0 - 0.03 && y < ty1 + 0.03;
+    const life = 1.6;
+    // with motion reduced the shower is a still scatter of streaks that fades in and out
+    const still = !f.motion;
+    for (let j = 0; j < (still ? 14 : 280); j++) {
+      const t0 = dur * (0.03 + 0.9 * hash01(ms.seed, j, 22));
+      const age = still ? 0.5 : (secs - t0) / life;
+      if (age < 0 || age >= 1) continue;
+      const peak = env(0.03, 0.35, 0.6, 0.95, t0 / dur);
+      if (!still && hash01(ms.seed, j, 23) > 0.2 + 0.8 * peak) continue;
+      // a start anywhere in the sky whose fall stays clear of the timer
+      let found = false;
+      let x = 0;
+      let y = 0;
+      let ang = 0;
+      const run = 0.11;
+      for (let k = 0; k < 8 && !found; k++) {
+        x = hash01(ms.seed, j, 24, k);
+        y = 0.02 + 0.72 * hash01(ms.seed, j, 25, k);
+        ang = Math.atan2(y * h - ry, x * w - rx);
+        const ex = x + (Math.cos(ang) * run * w) / w;
+        const ey = y + (Math.sin(ang) * run * w) / h;
+        found = !inTimer(x, y) && !inTimer(ex, ey) && !inTimer((x + ex) / 2, (y + ey) / 2);
+      }
+      if (!found) continue;
+      const bright = hash01(ms.seed, j, 26) > 0.88;
+      const m = this.shower[j % this.shower.length];
+      const head = this.showerHeads[j % this.shower.length];
+      const d = run * w * age;
+      const a = still ? 0.6 * env(0, 0.08, 0.9, 1, ms.p) : (bright ? 1 : 0.85) * Math.sin(Math.PI * Math.min(1, age * 1.15));
+      m.position.set(x * w + Math.cos(ang) * d, y * h + Math.sin(ang) * d);
+      m.rotation = ang;
+      m.width = w * (0.06 + 0.06 * hash01(ms.seed, j, 27)) * (bright ? 1.5 : 1) * Math.min(1, age * 4);
+      // the streak texture is painted thin in a taller strip: this is about a 2 px line
+      m.height = Math.max(7, w * 0.0058) * (bright ? 1.5 : 1);
+      m.tint = bright ? N.emberCore : hash01(ms.seed, j, 28) > 0.6 ? N.firstStar : 0xf3e6d8;
+      vis(m, a);
+      head.position.set(m.x, m.y);
+      head.width = head.height = Math.max(5, w * 0.0042) * (bright ? 1.7 : 1);
+      head.tint = m.tint;
+      vis(head, a * 0.9);
+    }
   }
 
   /** A shooting star now and then, a far rock drifting by: on the ambient clock, through the director. */

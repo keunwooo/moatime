@@ -21,6 +21,7 @@ import { CosmosCamera, type CamTarget } from './camera';
 import { clamp01, px, type CosmosFrame } from './frame';
 import { LAYOUT, systemPos } from './layout';
 import { buildCosmosTextures, releaseCosmosTextures, type CosmosTextures } from './textures';
+import { CivSystem } from './systems/civ';
 import { SkyEvents } from './systems/events';
 import { FogSystem } from './systems/fog';
 import { GalaxySystem } from './systems/galaxy';
@@ -62,6 +63,7 @@ export class CosmosScene implements ThemeScene {
   private galaxy!: GalaxySystem;
   private nebula!: NebulaSystem;
   private stars!: StarSystems;
+  private civ!: CivSystem;
   private home!: HomeSystem;
   private events!: SkyEvents;
   private fog!: FogSystem;
@@ -80,6 +82,7 @@ export class CosmosScene implements ThemeScene {
     this.galaxy = new GalaxySystem(this.tex);
     this.nebula = new NebulaSystem(this.tex);
     this.stars = new StarSystems(this.tex);
+    this.civ = new CivSystem(this.tex);
     this.home = new HomeSystem(this.tex);
     this.events = new SkyEvents(this.tex);
     this.fog = new FogSystem(this.tex);
@@ -89,7 +92,7 @@ export class CosmosScene implements ThemeScene {
     L.galaxy.addChild(this.galaxy.root);
     L.stars.addChild(this.sky.starLayer);
     L.nebula.addChild(this.nebula.root);
-    L.systems.addChild(this.stars.root);
+    L.systems.addChild(this.stars.root, this.civ.root);
     L.home.addChild(this.home.root);
     L.events.addChild(this.events.root);
     this.fogLayer.addChild(this.fog.root);
@@ -149,6 +152,7 @@ export class CosmosScene implements ThemeScene {
     this.galaxy.update(f);
     this.nebula.update(f);
     this.stars.update(f);
+    this.civ.update(f);
     this.home.update(f);
     this.events.update(f);
     this.fog.update(f);
@@ -197,6 +201,12 @@ export class CosmosScene implements ThemeScene {
       const tau = f.W - f.event!.t0 < 20_000 ? 5 : 1.5;
       return { key: 'planet-sight', fx: lp.x, fy: lp.y, ox: (lp.x - w / 2) * 0.25, oy: (lp.y - h * 0.72) * 0.5, z, tau, tauF: 0.5 };
     }
+    // a clash or a fleet among the stars: the view leans gently toward it
+    const civ = this.civ.focus;
+    if (civ && f.event && ['battle', 'fleet', 'convoy', 'ms:interstellar', 'ms:contact'].includes(f.event.kind)) {
+      const tau = f.W - f.event.t0 < 15_000 ? 5 : 2.5;
+      return { key: 'civ-sight', fx: civ.x, fy: civ.y, ox: (civ.x - w / 2) * 0.1, oy: (civ.y - h / 2) * 0.06, z: 1.07, tau, tauF: 3 };
+    }
     // a finished cluster (20 s) or zone (30 s) is shown whole
     const cur = unitAt(seed, A);
     if (cur && f.live !== undefined) {
@@ -211,7 +221,7 @@ export class CosmosScene implements ThemeScene {
     else if (A < CHRON.supernova + 60_000) site = f.L.firstGen[0];
     else if (A < CHRON.cradle) site = f.L.nebulaA.core;
     else if (A < CHRON.end) site = f.L.home;
-    else if (cur) site = systemPos(f.L, seed, cur.k, Math.floor(cur.k / PER_ZONE));
+    else if (cur) site = systemPos(f.L, seed, cur.k);
     const p = px(f, site);
     return { key: 'lean', fx: p.x, fy: p.y, ox: (p.x - w / 2) * 0.1, oy: (p.y - h / 2) * 0.06, z: site === f.L.home ? 1.04 : 1.07, tau: 5 };
   }

@@ -2,7 +2,8 @@
  * The star systems after the chronicle, one every 9–16 minutes: gas flows into the next knot
  * along slow spirals (the "work" of this world), the knot glows red and lights, its light tints
  * the nebula around it, a disk turns, planets gather out of it one by one, and what is left becomes
- * a faint belt. Four make a cluster; older zones recede into the distance, smaller and dimmer.
+ * a faint belt. Four make a cluster. Every system stays where it formed, so the sky fills up: the
+ * latest 160 are drawn (about 33 hours), planets on the latest 48, the oldest fade out.
  */
 
 import { Container, Sprite } from 'pixi.js';
@@ -12,8 +13,11 @@ import { systemPos } from '../layout';
 import { N, STAR_TINT } from '../palette';
 import type { CosmosTextures } from '../textures';
 
-const SIZE: Record<StarKind, number> = { red: 0.75, yellow: 1, blue: 1.55, binary: 0.8 };
+const SIZE: Record<StarKind, number> = { red: 0.85, yellow: 1.1, blue: 1.6, binary: 0.9 };
 const BEADS = 9;
+/** Systems drawn one by one (about 33 hours of the universe); planets on the most recent. */
+const SHOWN = 160;
+const DETAILED = 48;
 const STREAMS = 3;
 
 class SystemView {
@@ -92,17 +96,20 @@ export class StarSystems {
       for (const b of this.beads) b.visible = false;
       return;
     }
-    const zone = Math.floor(cur.k / 16);
-    const from = Math.max(1, (zone - 2) * 16);
+    // every system stays where it formed; the most recent ones are drawn in full
+    const from = Math.max(1, cur.k - SHOWN);
     const seen = new Set<number>();
     const wide = f.aspect === 'wide';
     const base = f.w * (wide ? 0.0042 : 0.0085);
     for (let k = from; k <= cur.k; k++) {
       seen.add(k);
       const v = this.view(k);
-      const q = systemPos(f.L, f.seed, k, zone);
-      const depth = q.d === 0 ? 1 : q.d === 1 ? 0.62 : 0.4;
-      const fade = q.d === 0 ? 1 : q.d === 1 ? 0.62 : 0.36;
+      const q = systemPos(f.L, f.seed, k);
+      const age = cur.k - k;
+      // older systems settle back a little (and the oldest in view fade into the sky)
+      const depth = q.scale * (age < DETAILED ? 1 : 0.85);
+      const fade = (age < DETAILED ? 1 : 0.8) * (1 - sm(SHOWN - 24, SHOWN, age));
+      const detailed = age < DETAILED;
       v.root.position.set(q.x * f.w, q.y * f.h);
       const kind = starKind(f.seed, k);
       const prog = k === cur.k ? cur.f : 1;
@@ -142,11 +149,11 @@ export class StarSystems {
       v.disk.rotation = (f.A / 1000) * 0.05;
       vis(v.disk, 0.75 * diskA * (1 - gone));
       v.belt.width = v.belt.height = base * 12 * depth;
-      vis(v.belt, (k === cur.k ? sm(UNIT.planetsEnd, UNIT.settle, prog) : 1) * 0.35 * (1 - gone) * (q.d < 2 ? 1 : 0) * (kind === 'blue' ? 0 : 1));
+      vis(v.belt, (k === cur.k ? sm(UNIT.planetsEnd, UNIT.settle, prog) : 1) * 0.35 * (1 - gone) * (detailed ? 1 : 0) * (kind === 'blue' ? 0 : 1));
       // planets, one by one
       const n = planetsOf(f.sim, k)?.n ?? (prog >= UNIT.planets ? systemPlanets(f.sim, k) : 0);
       v.planets.forEach((p, j) => {
-        if (j >= n || q.d >= 2 || gone) {
+        if (j >= n || !detailed || gone) {
           p.visible = false;
           return;
         }
@@ -164,16 +171,16 @@ export class StarSystems {
       });
     }
     for (const [k, v] of this.views) if (!seen.has(k)) this.release(k, v);
-    this.updateFlow(f, cur, zone);
+    this.updateFlow(f, cur);
   }
 
   /** Gas flows into the forming knot; then on toward the next. */
-  private updateFlow(f: CosmosFrame, cur: { k: number; f: number }, zone: number) {
-    const site = systemPos(f.L, f.seed, cur.k, zone);
+  private updateFlow(f: CosmosFrame, cur: { k: number; f: number }) {
+    const site = systemPos(f.L, f.seed, cur.k);
     const inflow = (1 - sm(UNIT.ignite - 0.02, UNIT.ignite + 0.02, cur.f)) * sm(0, 0.02, cur.f);
     const onward = sm(UNIT.settle, UNIT.settle + 0.02, cur.f);
     const a = inflow > 0 ? (site.x < 0.5 ? f.L.nebulaA.core : f.L.nebulaB.core) : site;
-    const next = systemPos(f.L, f.seed, cur.k + 1, Math.floor((cur.k + 1) / 16));
+    const next = systemPos(f.L, f.seed, cur.k + 1);
     const b = inflow > 0 ? site : next;
     const amount = Math.max(inflow, onward * 0.7);
     // a packet arriving makes the stream brighten for a moment

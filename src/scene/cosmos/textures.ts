@@ -24,6 +24,9 @@ export interface CosmosTextures {
   band: Texture;
   dustLane: Texture;
   bubble: Texture;
+  /** A thin neutral ring (colonies, the station) and a soft shield bubble, both for tinting. */
+  loop: Texture;
+  shield: Texture;
   shell: Texture;
   remnant: Texture;
   nebulaA: Texture[];
@@ -916,6 +919,23 @@ export async function buildCosmosTextures(seed: number, lowPower: boolean): Prom
     [1, [10, 8, 22], 0],
   ]);
   const veil = T(ve, 'cosmos-veil');
+  const lp = makeCanvas(256, 256);
+  radial(lp, [
+    [0, [246, 240, 236], 0],
+    [0.72, [246, 240, 236], 0],
+    [0.84, [246, 240, 236], 0.85],
+    [0.9, [246, 240, 236], 0.25],
+    [1, [246, 240, 236], 0],
+  ]);
+  const loop = T(lp, 'cosmos-loop');
+  const sd = makeCanvas(128, 128);
+  radial(sd, [
+    [0, [246, 240, 236], 0.08],
+    [0.6, [246, 240, 236], 0.18],
+    [0.86, [246, 240, 236], 0.7],
+    [1, [246, 240, 236], 0],
+  ]);
+  const shield = T(sd, 'cosmos-shield');
 
   return {
     glow,
@@ -927,6 +947,8 @@ export async function buildCosmosTextures(seed: number, lowPower: boolean): Prom
     band,
     dustLane,
     bubble,
+    loop,
+    shield,
     shell,
     remnant,
     nebulaA,

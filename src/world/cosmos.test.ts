@@ -10,7 +10,7 @@ import {
   spaceWeatherAt,
   STAR_FIELD,
 } from './cosmos';
-import { CHRON, cosmosStage, milestones, systemsDone } from '../sim/cosmos';
+import { CHRON, CIV, contactAt, cosmosStage, homeColonies, milestones, systemsDone } from '../sim/cosmos';
 import { advanceCosmos, initCosmos } from '../sim/cosmos';
 import type { PaceSeg } from './pace';
 import { initialState, newUniverse, start, withCosmosOrigin, finish, createNewWorld } from '../core/session';
@@ -76,6 +76,22 @@ describe('cosmos session sights', () => {
         if (e.kind === 'aurora' || e.kind === 'moonShadow') expect(stage).toBeGreaterThanOrEqual(8);
         if (e.kind === 'orbitLight') expect(stage).toBe(10);
       }
+    }
+  });
+
+  it('meteor showers come early; fleets and clashes wait for the peoples to exist', () => {
+    for (const seed of [1, 2, 424242]) {
+      const sights = cosmosSights(seed, 0, back2back(25 * MIN, 72));
+      const kinds = (k: string) => sights.filter((e) => e.kind === k);
+      expect(kinds('meteorShower').length).toBeGreaterThan(0);
+      expect(Math.min(...kinds('meteorShower').map((e) => e.t0))).toBeLessThan(8 * HOUR);
+      for (const e of kinds('battle')) expect(e.t0).toBeGreaterThanOrEqual(contactAt(seed));
+      for (const e of kinds('fleet')) expect(e.t0).toBeGreaterThanOrEqual(CIV.interstellar);
+      const second = homeColonies(seed, 100 * HOUR)[1].at;
+      for (const e of kinds('convoy')) expect(e.t0).toBeGreaterThanOrEqual(second);
+      // once there is someone to fight, clashes are the most common sight
+      const after = sights.filter((e) => e.t0 >= contactAt(seed));
+      expect(kinds('battle').length).toBeGreaterThanOrEqual(Math.floor(after.length / 6));
     }
   });
 

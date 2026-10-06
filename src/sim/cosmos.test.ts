@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
   advanceCosmos,
+  civAt,
+  civLevel,
   cloneCosmos,
   CHRON,
+  CIV,
+  contactAt,
+  homeColonies,
+  LIFE,
+  PER_CLUSTER,
+  rivalCluster,
+  rivalOf,
+  rivalsAt,
+  rivalTime,
   cometTimes,
   cosmosStage,
   deathAt,
@@ -109,7 +120,8 @@ describe('cosmos schedule', () => {
       expect(t[8]).toBe(3 * HOUR);
       expect(t[9] / HOUR).toBeGreaterThanOrEqual(4);
       expect(t[9] / HOUR).toBeLessThan(4.6);
-      expect(t[10]).toBe(8 * HOUR);
+      expect(t[10] / HOUR).toBeGreaterThan(5.5);
+      expect(t[10] / HOUR).toBeLessThan(8);
       let prev = 1;
       for (let A = 0; A < 12 * HOUR; A += 17 * S) {
         const st = cosmosStage(seed, A);
@@ -156,7 +168,7 @@ describe('cosmos schedule', () => {
       prevG = g;
     }
     for (const [k, v] of Object.entries(jump)) expect(v, k).toBeLessThan(0.2);
-    expect(lifePlanetAt(4, 9 * HOUR).lights).toBeGreaterThan(0);
+    expect(lifePlanetAt(4, 4.5 * HOUR).lights).toBeGreaterThan(0);
     expect(lifePlanetAt(4, 2 * HOUR).green).toBe(0);
   });
 
@@ -166,6 +178,76 @@ describe('cosmos schedule', () => {
       const a = [0, 1, 2].map((i) => ((orbitAngle(i, A) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
       expect(a[0]).toBeCloseTo(a[1], 6);
       expect(a[1]).toBeCloseTo(a[2], 6);
+    }
+  });
+});
+
+describe('the age of civilisations', () => {
+  it('the home people build outward step by step, then meet another people', () => {
+    for (const seed of [1, 7, 424242]) {
+      const steps = [LIFE.lights, CIV.station, CIV.moonBase, CIV.mining, CIV.terraform[0], CIV.giantMoons, CIV.interstellar, contactAt(seed)];
+      for (let i = 1; i < steps.length; i++) expect(steps[i]).toBeGreaterThan(steps[i - 1]);
+      let prev = 0;
+      for (let A = 0; A < 30 * HOUR; A += 5 * MIN) {
+        const lv = civLevel(seed, A);
+        expect(lv).toBeGreaterThanOrEqual(prev);
+        prev = lv;
+        const c = civAt(A);
+        for (const k of ['station', 'moonBase', 'mining', 'terraform', 'giantMoons', 'dyson'] as const) {
+          expect(c[k]).toBeGreaterThanOrEqual(0);
+          expect(c[k]).toBeLessThanOrEqual(1);
+        }
+        expect(c.shuttles).toBeLessThanOrEqual(8);
+        if (A < CIV.station) expect(c.shuttles).toBe(0);
+      }
+      expect(prev).toBe(9);
+    }
+  });
+
+  it('colonies: one every 30–50 minutes on a just-finished system, never blue or in a cluster of another people', () => {
+    for (const seed of [2, 9, 424242]) {
+      expect(homeColonies(seed, CIV.interstellar)).toHaveLength(0);
+      const late = homeColonies(seed, 60 * HOUR);
+      const early = homeColonies(seed, 12 * HOUR);
+      expect(late.slice(0, early.length)).toEqual(early);
+      expect(late.filter((c) => c.at <= 12 * HOUR)).toEqual(early);
+      expect(late.length).toBeGreaterThan(60);
+      const held = new Set(Array.from({ length: 12 }, (_, i) => Math.floor(rivalOf(seed, i).k / PER_CLUSTER)));
+      late.forEach((c, i) => {
+        expect(starKind(seed, c.k)).not.toBe('blue');
+        expect(held.has(Math.floor(c.k / PER_CLUSTER))).toBe(false);
+        expect(rivalCluster(seed, c.k, c.at)).toBe(false);
+        expect(c.at).toBeGreaterThanOrEqual(unitEnd(seed, c.k) + 5 * MIN);
+        // they keep up with the universe: a colony is never far behind the newest systems
+        expect(unitAt(seed, c.at)!.k - c.k).toBeLessThan(12);
+        if (i > 0) {
+          expect(c.k).toBeGreaterThan(late[i - 1].k);
+          expect(c.at - late[i - 1].at).toBeGreaterThanOrEqual(CIV.colonyEvery[0]);
+        }
+      });
+    }
+  });
+
+  it('other peoples rise in their own finished clusters, the first at 8 hours, then one every 6 hours', () => {
+    for (const seed of [3, 11, 424242]) {
+      const ks = new Set<number>();
+      for (let i = 0; i < 12; i++) {
+        const r = rivalOf(seed, i);
+        expect(r.at).toBe(rivalTime(i));
+        expect(r.at).toBeGreaterThanOrEqual(unitEnd(seed, Math.floor(r.k / PER_CLUSTER) * PER_CLUSTER + PER_CLUSTER - 1));
+        ks.add(Math.floor(r.k / PER_CLUSTER));
+        for (const c of r.colonies) {
+          expect(Math.floor(c.k / PER_CLUSTER)).toBe(Math.floor(r.k / PER_CLUSTER));
+          expect(starKind(seed, c.k)).not.toBe('blue');
+          expect(c.at).toBeGreaterThan(r.at);
+        }
+      }
+      expect(ks.size).toBe(12);
+      expect(rivalTime(0)).toBe(8 * HOUR);
+      expect(rivalTime(5) - rivalTime(4)).toBe(6 * HOUR);
+      expect(rivalsAt(seed, 7.9 * HOUR)).toHaveLength(0);
+      expect(rivalsAt(seed, 60 * HOUR).length).toBe(10);
+      expect(contactAt(seed)).toBe(8 * HOUR + CIV.contactAfter);
     }
   });
 });

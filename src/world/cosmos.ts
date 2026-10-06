@@ -14,6 +14,9 @@ import {
   ALIGN_AT,
   ALIGN_EVERY,
   CHRON,
+  CIV,
+  contactAt,
+  homeColonies,
   cosmosStage,
   fieldStarAt,
   fieldStars,
@@ -142,9 +145,22 @@ export interface SightDef {
   stage: number;
   w: number;
   dur: [number, number];
+  /** Not before this age (e.g. clashes need another people to meet). */
+  after?: (seed: number) => number;
 }
 
+/** A second home colony exists (trade convoys run between colonies). */
+const secondColonyAt = (seed: number) => {
+  // the plan is extended lazily; ask far enough ahead for the second entry
+  const c = homeColonies(seed, CIV.interstellar + 6 * H);
+  return c.length >= 2 ? c[1].at : Infinity;
+};
+
 export const SIGHTS: SightDef[] = [
+  { kind: 'meteorShower', stage: 5, w: 4, dur: [45 * S, 60 * S] },
+  { kind: 'battle', stage: 8, w: 10, dur: [85 * S, 105 * S], after: contactAt },
+  { kind: 'fleet', stage: 8, w: 2, dur: [60 * S, 80 * S], after: () => CIV.interstellar },
+  { kind: 'convoy', stage: 8, w: 2, dur: [50 * S, 70 * S], after: secondColonyAt },
   { kind: 'comet', stage: 5, w: 3, dur: [70 * S, 110 * S] },
   { kind: 'flare', stage: 5, w: 2, dur: [40 * S, 60 * S] },
   { kind: 'farSupernova', stage: 5, w: 2, dur: [50 * S, 75 * S] },
@@ -240,7 +256,7 @@ export function cosmosSights(seed: number, origin: number, segs: readonly PaceSe
       if (t < last + SIGHT_PACE.minGapMs) t = last + SIGHT_PACE.minGapMs;
       const A = t - origin;
       const stage = cosmosStage(seed, A);
-      const pool = SIGHTS.filter((d) => d.stage <= stage && d.kind !== lastKind);
+      const pool = SIGHTS.filter((d) => d.stage <= stage && d.kind !== lastKind && (!d.after || A >= d.after(seed)));
       if (!pool.length) break;
       let x = u01(seed, k0, 714, n) * pool.reduce((acc, d) => acc + d.w, 0);
       let pick = pool[0];
@@ -278,10 +294,11 @@ export function cosmosSights(seed: number, origin: number, segs: readonly PaceSe
 
 /** Dev only: sights called up by hand (world time W). */
 const devSights: WorldEvent[] = [];
-export function devCallSight(W: number, origin: number, seed: number) {
+export function devCallSight(W: number, origin: number, seed: number, kind?: string) {
   const stage = cosmosStage(seed, W - origin);
-  const pool = SIGHTS.filter((d) => d.stage <= Math.max(5, stage));
-  const pick = pool[devSights.length % pool.length];
+  const A = W - origin;
+  const pool = SIGHTS.filter((d) => d.stage <= Math.max(5, stage) && (!d.after || A >= d.after(seed)));
+  const pick = SIGHTS.find((d) => d.kind === kind) ?? pool[devSights.length % pool.length];
   devSights.push({ kind: pick.kind, prio: PRIORITY.AMBIENT, t0: W, t1: W + pick.dur[1], seed: hash32(seed, devSights.length, 719) >>> 0 });
 }
 

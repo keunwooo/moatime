@@ -544,13 +544,16 @@ input {
   gap: 8px;
 }
 .details dt {
+  flex: none;
   color: var(--ink-faint);
+  white-space: nowrap;
 }
 .details dd {
   margin: 0;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  word-break: keep-all;
 }
 
 .clock {

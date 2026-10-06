@@ -5,10 +5,14 @@
  * (72-minute year, 12-minute day) and a banded giant that later gets rings. The life planet cools,
  * gets a moon from a grazing impact, an ocean from comets, clouds, life along its coasts, seasons,
  * and in the end small lights on its night side. Planets behind the star pass behind it.
+ *
+ * Then its people build outward, each step visible from afar: a station ring around the planet, a
+ * base on the moon, sparks of mining in the belt, the inner planet turning blue-green, towns on the
+ * giant's moons, shuttles between them all, and at last a growing ring of collectors around the star.
  */
 
 import { Container, Sprite, Texture, TilingSprite } from 'pixi.js';
-import { CHRON, cometTimes, LIFE, lifePlanetAt, orbitAngle, ringsAt } from '../../../sim/cosmos';
+import { CHRON, civAt, cometTimes, LIFE, lifePlanetAt, orbitAngle, ringsAt, type CivState } from '../../../sim/cosmos';
 import { alignmentAt } from '../../../world/cosmos';
 import { clamp01, easeOut, env, eventIs, hash01, lerp, mixHex, px, sm, vis, type CosmosFrame } from '../frame';
 import { N } from '../palette';
@@ -201,8 +205,21 @@ export class HomeSystem {
   private alignLine: Sprite;
   private orbitLight: Sprite;
   private beltMeteors: Sprite[];
+  private stationBack: Container;
+  private stationFront: Container;
+  private stationLight: Sprite;
+  private moonBox = new Container();
+  private moonBase: Sprite[];
+  private innerRim: Sprite;
+  private giantMoons: { box: Container; body: Sprite; light: Sprite }[];
+  private mining: Sprite[];
+  private dysonRing: Sprite;
+  private dyson: Sprite[];
+  private shuttles: { s: Sprite; trail: Sprite }[];
   /** Screen position (layer px) and radius of the life planet, for the camera. */
   lifeAt = { x: 0, y: 0, r: 0 };
+  private innerAt = { x: 0, y: 0, r: 0 };
+  private giantAt = { x: 0, y: 0, r: 0 };
 
   constructor(tex: CosmosTextures) {
     const sp = (t: CosmosTextures['glow'], add = false) => {
@@ -246,9 +263,9 @@ export class HomeSystem {
     this.innerShade = sp(tex.shade);
     this.giantBody = sp(tex.giant);
     this.giantShade = sp(tex.shade);
-    const ringHalf = (front: boolean) => {
+    const ringHalf = (front: boolean, t: Texture = tex.ring) => {
       const c = new Container();
-      const r = sp(tex.ring);
+      const r = sp(t);
       c.addChild(r);
       // a mask that keeps only the near (front) or far (back) half of the flattened ring
       const m = new Sprite(Texture.WHITE);
@@ -263,8 +280,48 @@ export class HomeSystem {
     this.ringFront = ringHalf(true);
     this.giant.addChild(this.ringBack, this.giantBody, this.giantShade, this.ringFront);
     this.life = new LifePlanet(tex);
-    this.lifeBox.addChild(this.life.root);
+    this.stationBack = ringHalf(false, tex.loop);
+    this.stationFront = ringHalf(true, tex.loop);
+    this.stationLight = sp(tex.dot, true);
+    this.lifeBox.addChild(this.stationBack, this.life.root, this.stationFront, this.stationLight);
     this.moon = sp(tex.moon);
+    this.moonBase = [0, 1, 2].map(() => {
+      const l = sp(tex.dot, true);
+      l.tint = N.gold;
+      return l;
+    });
+    this.moonBox.addChild(this.moon, ...this.moonBase);
+    this.innerRim = sp(tex.rim, true);
+    this.innerRim.tint = N.teal;
+    this.giantMoons = [0, 1].map(() => {
+      const box = new Container();
+      const body = sp(tex.moon);
+      const light = sp(tex.dot, true);
+      light.tint = N.gold;
+      box.addChild(body, light);
+      return { box, body, light };
+    });
+    this.mining = Array.from({ length: 12 }, () => {
+      const m = sp(tex.dot, true);
+      m.tint = N.gold;
+      return m;
+    });
+    this.dysonRing = sp(tex.loop, true);
+    this.dysonRing.tint = N.gold;
+    this.dyson = Array.from({ length: 48 }, () => {
+      const d = sp(tex.dot, true);
+      d.tint = N.emberCore;
+      return d;
+    });
+    this.shuttles = Array.from({ length: 8 }, () => {
+      const trail = new Sprite(tex.streak);
+      trail.anchor.set(1, 0.5);
+      trail.blendMode = 'add';
+      trail.tint = N.gold;
+      const s = sp(tex.dot, true);
+      s.tint = N.emberCore;
+      return { s, trail };
+    });
     this.impactor = sp(tex.inner);
     this.debris = sp(tex.belt);
     for (let i = 0; i < 15; i++) {
@@ -303,9 +360,13 @@ export class HomeSystem {
       this.starHalo,
       this.starGlow,
       this.starCore,
+      this.dysonRing,
+      ...this.dyson,
       this.flare,
       this.belt,
+      ...this.mining,
       this.front,
+      ...this.shuttles.flatMap((x) => [x.trail, x.s]),
       this.alignLine,
       ...this.beltMeteors,
       this.cometTail,
@@ -419,6 +480,7 @@ export class HomeSystem {
 
     // planets: gather from the disk, then orbit
     const rr = L.planetR;
+    const civ = civAt(A);
     const homeT = CHRON.homePlanets.map(([a, b]) => [a / 1000, b / 1000]);
     const bodies: { a: number; i: number; r: number }[] = [
       { a: L.orbits.inner, i: 0, r: rr.inner * W },
@@ -452,10 +514,16 @@ export class HomeSystem {
       if (b.i === 0) {
         this.place(this.inner, o.depth);
         this.place(this.innerShade, o.depth);
+        this.place(this.innerRim, o.depth);
         this.inner.position.set(o.x, o.y);
         this.inner.width = this.inner.height = b.r * 2 * o.scale;
-        this.inner.tint = tint;
+        this.inner.tint = mixHex(tint, 0x8fd6c4, civ.terraform * 0.8);
         vis(this.inner, shown);
+        // a thin new air around it as it is made liveable
+        this.innerRim.position.set(o.x, o.y);
+        this.innerRim.width = this.innerRim.height = b.r * 2.5 * o.scale;
+        vis(this.innerRim, 0.75 * civ.terraform * shown);
+        this.innerAt = { x: o.x, y: o.y, r: b.r * o.scale };
         this.innerShade.position.set(o.x, o.y);
         this.innerShade.width = this.innerShade.height = b.r * 2 * o.scale;
         this.innerShade.rotation = lit;
@@ -469,7 +537,8 @@ export class HomeSystem {
         this.lifeBox.visible = shown > 0.003;
         this.life.root.tint = tint;
         this.lifeAt = { x: o.x, y: o.y, r };
-        this.updateMoon(f, o, r, lit);
+        this.updateStation(f, r, civ);
+        this.updateMoon(f, o, r, lit, civ);
       } else {
         this.place(this.giant, o.depth);
         this.giant.position.set(o.x, o.y);
@@ -489,13 +558,18 @@ export class HomeSystem {
           half.alpha = ring * 0.9;
           half.visible = ring > 0.003;
         }
+        this.giantAt = { x: o.x, y: o.y, r };
+        this.updateGiantMoons(f, r, lit, civ);
       }
     }
+    this.updateDyson(f, c, rStar, civ);
+    this.updateMining(f, c, civ);
+    this.updateShuttles(f, civ);
     this.updateComets(f);
     this.updateSights(f, c, rStar);
   }
 
-  private updateMoon(f: CosmosFrame, o: Orbit, r: number, lit: number) {
+  private updateMoon(f: CosmosFrame, o: Orbit, r: number, lit: number, civ: CivState) {
     const s = f.As;
     const t = LIFE.moon / 1000;
     // a small body grazes the planet; the flung ring of debris gathers into a moon
@@ -519,16 +593,169 @@ export class HomeSystem {
     const my = o.y + md * r * 0.7;
     // the moon passes behind its planet on the far half of its orbit
     const parent = this.lifeBox.parent;
+    const box = this.moonBox;
     if (parent) {
-      if (this.moon.parent !== parent) parent.addChild(this.moon);
+      if (box.parent !== parent) parent.addChild(box);
       const li = parent.getChildIndex(this.lifeBox);
-      const mi = parent.getChildIndex(this.moon);
-      if ((md < 0 && mi > li) || (md >= 0 && mi < li)) parent.setChildIndex(this.moon, li);
+      const mi = parent.getChildIndex(box);
+      if ((md < 0 && mi > li) || (md >= 0 && mi < li)) parent.setChildIndex(box, li);
     }
-    this.moon.position.set(mx, my);
-    this.moon.width = this.moon.height = r * 0.42 * (1 + 0.12 * md) * (0.3 + 0.7 * form);
+    box.position.set(mx, my);
+    const mr = r * 0.21 * (1 + 0.12 * md) * (0.3 + 0.7 * form);
+    this.moon.width = this.moon.height = mr * 2;
     this.moon.rotation = lit;
     vis(this.moon, form);
+    // the moon base: a few lights on its night side, blinking slowly
+    const away = lit + Math.PI;
+    this.moonBase.forEach((l, i) => {
+      const a = away + (i - 1) * 0.55;
+      l.position.set(Math.cos(a) * mr * 0.62, Math.sin(a) * mr * 0.62);
+      l.width = l.height = Math.max(4, mr * (i === 1 ? 1 : 0.75));
+      l.tint = i === 1 ? N.emberCore : N.gold;
+      vis(l, civ.moonBase * form * (0.7 + 0.3 * Math.sin(f.t * (1.1 + i * 0.4) + i)));
+    });
+  }
+
+  /** A ring station around the life planet, with a light running along it. */
+  private updateStation(f: CosmosFrame, r: number, civ: CivState) {
+    const k = civ.station;
+    for (const half of [this.stationBack, this.stationFront]) {
+      half.scale.set(1, 0.28);
+      half.rotation = 0.22;
+      const rs = half.children[0] as Sprite;
+      rs.width = rs.height = r * 3.6 * (0.85 + 0.15 * k);
+      rs.tint = N.gold;
+      half.alpha = 0.75 * k;
+      half.visible = k > 0.003;
+    }
+    const a = (f.A / 1000 / 24) * Math.PI * 2;
+    const R = r * 1.5 * (0.85 + 0.15 * k);
+    const lx = Math.cos(a) * R;
+    const ly = Math.sin(a) * R * 0.28;
+    this.stationLight.position.set(lx * Math.cos(0.22) - ly * Math.sin(0.22), lx * Math.sin(0.22) + ly * Math.cos(0.22));
+    this.stationLight.width = this.stationLight.height = Math.max(4, r * 0.22);
+    this.stationLight.tint = N.emberCore;
+    vis(this.stationLight, k * (Math.sin(a) > 0 ? 1 : 0.25) * (0.6 + 0.4 * Math.sin(f.t * 2.2)));
+  }
+
+  /** Two small moons around the giant; towns light up on them. */
+  private updateGiantMoons(f: CosmosFrame, r: number, lit: number, civ: CivState) {
+    const g = this.giant;
+    this.giantMoons.forEach((m, i) => {
+      const P = i === 0 ? 50 : 85;
+      const a = (f.A / 1000 / P) * Math.PI * 2 + i * 2.4;
+      const d = Math.cos(a);
+      if (m.box.parent !== g) g.addChild(m.box);
+      g.setChildIndex(m.box, d < 0 ? 0 : g.children.length - 1);
+      m.box.position.set(Math.sin(a) * r * (2.5 + i * 0.9), d * r * (0.5 + i * 0.2) * 0.9);
+      const mr = r * (i === 0 ? 0.17 : 0.13) * (1 + 0.1 * d);
+      m.body.width = m.body.height = mr * 2;
+      m.body.rotation = lit;
+      m.body.tint = i === 0 ? 0xd8c8b0 : 0xb8c0d0;
+      m.light.width = m.light.height = Math.max(3, mr * 0.9);
+      m.light.position.set(-Math.cos(lit) * mr * 0.4, -Math.sin(lit) * mr * 0.4);
+      vis(m.light, civ.giantMoons * (0.75 + 0.25 * Math.sin(f.t * 1.4 + i * 3)));
+    });
+  }
+
+  /** A ring of collectors around the star, filling in over many hours. */
+  private updateDyson(f: CosmosFrame, c: { x: number; y: number }, rStar: number, civ: CivState) {
+    const k = civ.dyson;
+    const R = rStar * 3.4;
+    const tilt = 0.32;
+    this.dysonRing.position.set(c.x, c.y);
+    this.dysonRing.width = R * 2.38;
+    this.dysonRing.height = R * 2.38 * tilt;
+    vis(this.dysonRing, 0.35 * Math.min(1, k * 3));
+    const n = Math.round(k * this.dyson.length);
+    const turn = (f.A / 1000 / 140) * Math.PI * 2;
+    this.dyson.forEach((d, i) => {
+      if (i >= n) {
+        d.visible = false;
+        return;
+      }
+      // they fill the ring from two sides, evenly spaced in the end
+      const slot = i % 2 ? Math.floor(i / 2) + 0.5 : -Math.floor(i / 2);
+      const a = turn + (slot / this.dyson.length) * Math.PI * 2;
+      const dep = Math.sin(a);
+      d.position.set(c.x + Math.cos(a) * R, c.y + dep * R * tilt);
+      d.width = d.height = Math.max(3, rStar * 0.32) * (1 + 0.15 * dep);
+      vis(d, (dep < 0 ? 0.35 : 0.95) * (0.8 + 0.2 * Math.sin(f.t * 1.7 + i)));
+    });
+  }
+
+  /** Sparks where ships work the belt. */
+  private updateMining(f: CosmosFrame, c: { x: number; y: number }, civ: CivState) {
+    const R = f.L.orbits.belt * f.w;
+    const tilt = f.L.orbits.tilt;
+    const rot = (f.A / 1000) * 0.007;
+    const n = Math.ceil(civ.mining * this.mining.length * (0.5 + 0.5 * civ.terraform));
+    this.mining.forEach((m, i) => {
+      if (i >= n) {
+        m.visible = false;
+        return;
+      }
+      const a = hash01(i, 81) * Math.PI * 2 + rot;
+      const rr = R * (0.94 + 0.12 * hash01(i, 82));
+      m.position.set(c.x + Math.sin(a) * rr, c.y + Math.cos(a) * rr * tilt);
+      const tw = Math.max(0, Math.sin(f.t * (0.7 + hash01(i, 83)) + i * 1.7));
+      m.width = m.height = Math.max(4, f.w * 0.0036) * (0.6 + 0.7 * tw);
+      vis(m, civ.mining * (0.25 + 0.75 * tw * tw));
+    });
+  }
+
+  /** Shuttles between the home worlds: more of them, to more places, as the people grow. */
+  private updateShuttles(f: CosmosFrame, civ: CivState) {
+    const lp = this.lifeAt;
+    const c = px(f, f.L.home);
+    const R = f.L.orbits.belt * f.w;
+    const dests: ({ x: number; y: number } | 'belt')[] = [];
+    if (civ.moonBase > 0) dests.push({ x: this.moonBox.x, y: this.moonBox.y });
+    if (civ.mining > 0) dests.push('belt');
+    if (civ.terraform > 0) dests.push(this.innerAt);
+    if (civ.giantMoons > 0) dests.push(this.giantAt);
+    this.shuttles.forEach((sh, i) => {
+      if (i >= civ.shuttles || lp.r <= 0) {
+        sh.s.visible = sh.trail.visible = false;
+        return;
+      }
+      const d = dests.length ? dests[i % dests.length] : null;
+      let to: { x: number; y: number };
+      if (d === 'belt') {
+        const a = hash01(i, 91) * Math.PI * 2;
+        to = { x: c.x + Math.sin(a) * R, y: c.y + Math.cos(a) * R * f.L.orbits.tilt };
+      } else if (d) to = d;
+      // with nowhere to go yet, the first shuttle rises to the station and back
+      else to = { x: lp.x + lp.r * 1.4, y: lp.y - lp.r * 0.5 };
+      const period = 34 + 22 * hash01(i, 92);
+      const clock = f.motion ? f.t : f.As;
+      const u = (((clock / period + hash01(i, 93)) % 1) + 1) % 1;
+      const out = u < 0.5;
+      const lu = clamp01((u % 0.5) / 0.42);
+      const t = out ? lu : 1 - lu;
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const dx = to.x - lp.x;
+      const dy = to.y - lp.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const bend = (hash01(i, 94) > 0.5 ? 1 : -1) * len * 0.22;
+      const cx = (lp.x + to.x) / 2 - (dy / len) * bend;
+      const cy = (lp.y + to.y) / 2 + (dx / len) * bend;
+      const at = (q: number) => {
+        const it = 1 - q;
+        return { x: it * it * lp.x + 2 * it * q * cx + q * q * to.x, y: it * it * lp.y + 2 * it * q * cy + q * q * to.y };
+      };
+      const p = at(ease);
+      const p2 = at(clamp01(ease + (out ? -0.04 : 0.04)));
+      const a = 0.95 * sm(0, 0.1, lu) * (1 - sm(0.9, 1, lu));
+      sh.s.position.set(p.x, p.y);
+      sh.s.width = sh.s.height = Math.max(3.5, f.w * 0.0028);
+      vis(sh.s, a);
+      sh.trail.position.set(p.x, p.y);
+      sh.trail.rotation = Math.atan2(p.y - p2.y, p.x - p2.x);
+      sh.trail.width = Math.max(10, Math.hypot(p.x - p2.x, p.y - p2.y) * 1.6);
+      sh.trail.height = Math.max(5, f.w * 0.004);
+      vis(sh.trail, a * 0.7);
+    });
   }
 
   /** Comets from the outer disk carry ice to the life planet (the ledger's comets). */

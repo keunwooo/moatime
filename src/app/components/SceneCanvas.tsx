@@ -7,6 +7,7 @@ import { simAt, simRunner } from '../sim';
 import { hostRef as activeHostRef } from '../hostRef';
 import { Poster } from './Poster';
 import { devCallSight } from '../../world/cosmos';
+import { worldEnv } from '../../world/env';
 
 interface Props {
   theme: ThemeId;
@@ -65,8 +66,9 @@ export function SceneCanvas({ theme, reducedMotion, cameraLock, lowPower, effect
       };
       const sim = () => simRunner(engine.getState().settings.theme);
       // a cosmos session sight that began `agoMs` ago (inspection while idle)
-      const sight = (agoMs = 25_000) => devCallSight(engine.worldTime() - agoMs, engine.cosmosOrigin(), engine.getState().world.seed);
-      (window as unknown as { __moa: unknown }).__moa = { host, engine, zoom, at, sim, sight };
+      const sight = (agoMs = 25_000, kind?: string) => devCallSight(engine.worldTime() - agoMs, engine.cosmosOrigin(), engine.getState().world.seed, kind);
+      const headline = () => worldEnv(engine.getState().settings.theme, engine.getState().world.seed, engine.worldTime(), engine.cosmosOrigin()).event;
+      (window as unknown as { __moa: unknown }).__moa = { host, engine, zoom, at, sim, sight, headline };
     }
     void host.init(theme);
     const off = engine.onEvent((e) => {

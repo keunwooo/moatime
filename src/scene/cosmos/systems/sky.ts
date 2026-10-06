@@ -51,7 +51,7 @@ export class SkySystem {
 
   constructor(tex: CosmosTextures, lowPower: boolean) {
     this.tex = tex;
-    this.max = lowPower ? 240 : 400;
+    this.max = lowPower ? 320 : 640;
     this.mottle = new TilingSprite({ texture: tex.fog, width: 10, height: 10 });
     this.mottle.tint = N.nightMist;
     this.cmb = new Sprite(tex.cmb);

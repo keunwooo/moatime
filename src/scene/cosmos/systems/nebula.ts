@@ -3,7 +3,8 @@
  * web's knot drew tight, burns away the murk with a clear blue bubble, and dies: it swells and
  * reddens (the first one), draws in, and blows out a shell of stardust that slows into a nebula —
  * the first on the left, the second on the right at 35 minutes. Blue giants born later die the same
- * way where they stand. Nebulae breathe slowly and lean with the stellar wind.
+ * way where they stand, and their remnants stay as small nebulae that widen and fade over many
+ * hours, so the sky keeps what happened in it. Nebulae breathe slowly and lean with the stellar wind.
  */
 
 import { Container, Sprite } from 'pixi.js';
@@ -80,6 +81,8 @@ export class NebulaSystem {
   private layersB: Sprite[];
   private lanes: Sprite;
   private blue: Burst[] = [];
+  private patchLayer = new Container();
+  private patches: { wisp: Sprite; glow: Sprite }[] = [];
 
   constructor(tex: CosmosTextures) {
     // emission nebulae glow: their washes add light rather than cover what is behind
@@ -96,7 +99,15 @@ export class NebulaSystem {
       return s;
     });
     this.nebB.addChild(...this.layersB);
-    this.root.addChild(this.nebB, this.nebA);
+    for (let i = 0; i < 16; i++) {
+      const glow = new Sprite(tex.glowSoft);
+      glow.blendMode = 'add';
+      const wisp = new Sprite(tex.remnant);
+      for (const x of [glow, wisp]) x.anchor.set(0.5);
+      this.patchLayer.addChild(glow, wisp);
+      this.patches.push({ wisp, glow });
+    }
+    this.root.addChild(this.nebB, this.nebA, this.patchLayer);
     for (let i = 0; i < 5; i++) {
       const knot = new Sprite(tex.glowSoft);
       knot.tint = N.webViolet;
@@ -169,20 +180,49 @@ export class NebulaSystem {
 
     // blue giants of the star systems die where they stand
     const cur = unitAt(f.seed, f.A);
-    const zone = cur ? Math.floor(cur.k / 16) : 0;
     let n = 0;
     if (cur) {
       for (let k = cur.k; k >= Math.max(1, cur.k - 14) && n < this.blue.length; k--) {
         if (starKind(f.seed, k) !== 'blue') continue;
         const d = deathAt(f.seed, k) / 1000;
         if (d > s || s - d > 1800) continue;
-        const q = systemPos(f.L, f.seed, k, zone);
-        const depth = Math.pow(0.65, q.d);
+        const q = systemPos(f.L, f.seed, k);
+        const depth = q.scale;
         this.blue[n++].update(q.x * w, q.y * h, d, s, w * 0.05 * depth * (f.aspect === 'wide' ? 1 : 1.6), 0.08);
       }
     }
     for (; n < this.blue.length; n++) this.blue[n].update(0, 0, Infinity, s, 0, 0);
+    this.updatePatches(f, cur);
     void unitEnd;
+  }
+
+  /** What blue giants left: small nebulae that widen and slowly fade (the burst covers the first 30 min). */
+  private updatePatches(f: CosmosFrame, cur: { k: number } | null) {
+    const s = f.As;
+    let m = 0;
+    if (cur) {
+      for (let k = cur.k; k >= Math.max(1, cur.k - 160) && m < this.patches.length; k--) {
+        if (starKind(f.seed, k) !== 'blue') continue;
+        const d = deathAt(f.seed, k) / 1000;
+        const age = s - d;
+        if (age < 1500) continue;
+        const q = systemPos(f.L, f.seed, k);
+        const p = this.patches[m++];
+        const a = sm(1500, 1800, age) * (1 - 0.55 * sm(10 * 3600, 50 * 3600, age));
+        const R = f.w * 0.08 * q.scale * (f.aspect === 'wide' ? 1 : 1.6) * (1 + 0.45 * sm(1800, 8 * 3600, age));
+        const tint = hash01(k, 61) < 0.5 ? N.rose : hash01(k, 62) < 0.6 ? N.teal : N.gold;
+        p.wisp.position.set(q.x * f.w, q.y * f.h);
+        p.wisp.width = p.wisp.height = R;
+        p.wisp.rotation = hash01(k, 63) * 6.28 + age * 0.00002;
+        p.wisp.tint = tint;
+        vis(p.wisp, 0.24 * a);
+        p.glow.position.set(q.x * f.w, q.y * f.h);
+        p.glow.width = p.glow.height = R * 1.5;
+        p.glow.tint = tint;
+        vis(p.glow, 0.12 * a);
+      }
+    }
+    for (; m < this.patches.length; m++) this.patches[m].wisp.visible = this.patches[m].glow.visible = false;
   }
 
   private placeNebula(

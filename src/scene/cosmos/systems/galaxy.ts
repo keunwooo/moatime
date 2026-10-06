@@ -63,7 +63,9 @@ export class GalaxySystem {
     const g = galaxyAt(f.A);
     const L = f.L.galaxy;
     const c = px(f, L);
-    const R = L.r * f.w;
+    // it keeps gathering stars: a quarter larger and brighter over the first day of the universe
+    const grown = sm(3 * 3600, 30 * 3600, f.As);
+    const R = L.r * f.w * (1 + 0.25 * grown);
     const dust = f.weather.dust;
     this.plane.position.set(c.x, c.y);
     this.plane.rotation = L.angle;
@@ -73,7 +75,7 @@ export class GalaxySystem {
     this.disk.width = this.disk.height = size;
     this.disk.rotation = g.angle;
     this.disk.tint = reddish;
-    vis(this.disk, 0.85 * g.disk * (1 - 0.3 * dust));
+    vis(this.disk, (0.85 + 0.15 * grown) * g.disk * (1 - 0.3 * dust));
     this.arms.width = this.arms.height = size;
     this.arms.rotation = g.angle;
     this.arms.tint = reddish;

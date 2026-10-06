@@ -212,8 +212,9 @@ export const LIFE = {
   clouds: [140 * MIN, 160 * MIN] as [number, number],
   life: 3 * H,
   lifeSpreadEnd: 7 * H,
-  lights: 8 * H,
-  lightsFull: 20 * H,
+  /** The first lights on the night side; towns keep spreading for hours after. */
+  lights: 4.25 * H,
+  lightsFull: 12 * H,
   /** Turning fast enough to watch: clouds and continents cross the disc in about a minute. */
   rotationMs: 2 * MIN,
   /** Seasons keep the forest's pace (the visible orbit below is quicker). */
@@ -287,7 +288,16 @@ export type MilestoneId =
   | 'galaxyDisk'
   | 'life'
   | 'coreAwake'
-  | 'firstLights';
+  | 'firstLights'
+  | 'station'
+  | 'moonBase'
+  | 'mining'
+  | 'terraform'
+  | 'giantMoons'
+  | 'interstellar'
+  | 'firstColony'
+  | 'contact'
+  | 'dyson';
 
 export interface Milestone {
   id: MilestoneId;
@@ -321,6 +331,15 @@ export function milestones(seed: number): Milestone[] {
     { id: 'life', A: LIFE.life, dur: 75 * S, visit: true },
     { id: 'coreAwake', A: 4 * H, dur: 90 * S },
     { id: 'firstLights', A: LIFE.lights, dur: 75 * S, visit: true },
+    { id: 'station', A: CIV.station, dur: 75 * S, visit: true },
+    { id: 'moonBase', A: CIV.moonBase, dur: 60 * S, visit: true },
+    { id: 'mining', A: CIV.mining, dur: 60 * S },
+    { id: 'terraform', A: CIV.terraform[0], dur: 75 * S },
+    { id: 'giantMoons', A: CIV.giantMoons, dur: 60 * S },
+    { id: 'interstellar', A: CIV.interstellar, dur: CIV.voyageMs },
+    { id: 'firstColony', A: CIV.interstellar + CIV.voyageMs, dur: 60 * S },
+    { id: 'contact', A: contactAt(seed), dur: 75 * S },
+    { id: 'dyson', A: CIV.dyson[0], dur: 75 * S },
   ];
   // never overlap: a later one waits for the earlier to end
   m.sort((a, b) => a.A - b.A);
@@ -746,4 +765,184 @@ export function fieldStars(A: number): number {
 /** A at which background star i lights. */
 export function fieldStarAt(i: number): number {
   return FIELD.first + i * FIELD.every;
+}
+
+// ---- the age of civilisations ---------------------------------------------------------------------
+
+/**
+ * After life, the home world's people reach out, one visible step at a time: lights on the night
+ * side, a station in orbit, a moon base, ships mining the belt, the inner planet turning blue, towns
+ * on the giant's moons, then ships to other stars and colonies there, and in the end a ring of
+ * collectors around the home star. Other peoples rise in far systems; where their reaches meet ours
+ * there are clashes (session sights in world/cosmos.ts). All closed-form in (seed, A); nothing here
+ * touches the ledger.
+ */
+export const CIV = {
+  station: 4.75 * H,
+  moonBase: 5.25 * H,
+  mining: 5.75 * H,
+  terraform: [6.25 * H, 8.25 * H] as [number, number],
+  giantMoons: 6.75 * H,
+  interstellar: 7.25 * H,
+  /** The first ship's voyage to its new star. */
+  voyageMs: 90 * S,
+  /** A new home colony every 30–50 minutes after the first. */
+  colonyEvery: [30 * MIN, 50 * MIN] as [number, number],
+  /**
+   * Other peoples rise at these ages, then one every 6 hours for as long as the universe runs; each
+   * settles a cluster that finished about 3 hours before, so they stay among the systems in view.
+   */
+  rivalTimes: [8 * H, 11 * H, 14 * H],
+  rivalEvery: 6 * H,
+  rivalClusterAge: 3 * H,
+  rivalColonyEvery: 50 * MIN,
+  rivalColonies: 3,
+  /** The first clash is possible this long after the first other people appear. */
+  contactAfter: 20 * MIN,
+  /** The ring of collectors around the home star grows over these hours. */
+  dyson: [10 * H, 40 * H] as [number, number],
+};
+
+export interface Colony {
+  k: number;
+  at: number;
+}
+
+export interface Rival {
+  i: number;
+  k: number;
+  at: number;
+  colonies: Colony[];
+}
+
+/** When other people i rises. */
+export function rivalTime(i: number): number {
+  const n = CIV.rivalTimes.length;
+  return i < n ? CIV.rivalTimes[i] : CIV.rivalTimes[n - 1] + (i - n + 1) * CIV.rivalEvery;
+}
+
+const rivalMemo = new Map<number, Rival[]>();
+
+/** Other people i (whether risen yet or not), with every colony they will found. */
+export function rivalOf(seed: number, i: number): Rival {
+  let list = rivalMemo.get(seed);
+  if (!list) {
+    list = [];
+    if (rivalMemo.size > 16) rivalMemo.clear();
+    rivalMemo.set(seed, list);
+  }
+  while (list.length <= i) {
+    const j = list.length;
+    const at = rivalTime(j);
+    // their cluster is the one of the system finished about three hours earlier (all of it is done by now)
+    const last = Math.max(1, (unitAt(seed, at - CIV.rivalClusterAge)?.k ?? 2) - 1);
+    const c0 = Math.floor(last / PER_CLUSTER) * PER_CLUSTER;
+    const ks = Array.from({ length: PER_CLUSTER }, (_, n) => c0 + n).filter((k) => k >= 1);
+    const k = ks.find((kk) => starKind(seed, kk) !== 'blue') ?? ks[0];
+    const colonies: Colony[] = [];
+    let t = at;
+    for (const kk of ks) {
+      if (kk === k || starKind(seed, kk) === 'blue' || colonies.length >= CIV.rivalColonies) continue;
+      t = Math.max(t + CIV.rivalColonyEvery, unitEnd(seed, kk) + 5 * MIN);
+      colonies.push({ k: kk, at: t });
+    }
+    list.push({ i: j, k, at, colonies });
+  }
+  return list[i];
+}
+
+/** Other peoples that exist at A, with the colonies they hold by then. */
+export function rivalsAt(seed: number, A: number): Rival[] {
+  const out: Rival[] = [];
+  for (let i = 0; rivalTime(i) <= A; i++) {
+    const r = rivalOf(seed, i);
+    out.push({ ...r, colonies: r.colonies.filter((c) => c.at <= A) });
+  }
+  return out;
+}
+
+/** When the first clash becomes possible. */
+export function contactAt(_seed: number): number {
+  return rivalTime(0) + CIV.contactAfter;
+}
+
+/**
+ * Is system k in a cluster held by another people? Clusters are reserved from their schedule alone,
+ * so we never settle one before they rise there. A colony founded at `t` takes a system finished
+ * just before, so only peoples rising within hours of t can hold that cluster.
+ */
+export function rivalCluster(seed: number, k: number, t: number): boolean {
+  const c = Math.floor(k / PER_CLUSTER);
+  for (let i = 0; ; i++) {
+    const at = rivalTime(i);
+    if (at > t + CIV.rivalClusterAge + 3 * H) return false;
+    if (at >= t - 6 * H && Math.floor(rivalOf(seed, i).k / PER_CLUSTER) === c) return true;
+  }
+}
+
+const colonyMemo = new Map<number, { list: Colony[]; slot: number; t: number }>();
+
+/**
+ * Home colonies founded by A, oldest first. Every 30–50 minutes our people settle the most recently
+ * finished system that is free (not a blue giant, not another people's), so colonies keep pace with
+ * the growing universe and stay in view.
+ */
+export function homeColonies(seed: number, A: number): Colony[] {
+  if (A < CIV.interstellar + CIV.voyageMs) return [];
+  let m = colonyMemo.get(seed);
+  if (!m) {
+    m = { list: [], slot: 0, t: CIV.interstellar + CIV.voyageMs };
+    if (colonyMemo.size > 16) colonyMemo.clear();
+    colonyMemo.set(seed, m);
+  }
+  const list = m.list;
+  // extend the plan until it passes A
+  while ((list.length === 0 || list[list.length - 1].at <= A) && m.slot < 20000) {
+    if (m.slot > 0) m.t += Math.round(CIV.colonyEvery[0] + (CIV.colonyEvery[1] - CIV.colonyEvery[0]) * u01(seed, 661, m.slot));
+    m.slot++;
+    const t = m.t;
+    const prev = list.length ? list[list.length - 1].k : 0;
+    // a system can only be settled once it is complete
+    let k = (unitAt(seed, t - 5 * MIN)?.k ?? 1) - 1;
+    while (k > prev && (starKind(seed, k) === 'blue' || rivalCluster(seed, k, t))) k--;
+    if (k > prev) list.push({ k, at: t });
+  }
+  let n = 0;
+  while (n < list.length && list[n].at <= A) n++;
+  return list.slice(0, n);
+}
+
+export const CIV_LEVEL_NAMES = ['', '첫 불빛', '궤도 정거장', '달 기지', '소행성대 채굴', '테라포밍', '위성 도시', '성간 항해', '식민지', '첫 만남'] as const;
+
+/** How far the home world's people have come (0 none .. 9 other peoples met). */
+export function civLevel(seed: number, A: number): number {
+  const steps = [LIFE.lights, CIV.station, CIV.moonBase, CIV.mining, CIV.terraform[0], CIV.giantMoons, CIV.interstellar, CIV.interstellar + CIV.voyageMs, contactAt(seed)];
+  let n = 0;
+  for (const t of steps) if (A >= t) n++;
+  return n;
+}
+
+export interface CivState {
+  /** 0..1 for each visible step. */
+  station: number;
+  moonBase: number;
+  mining: number;
+  terraform: number;
+  giantMoons: number;
+  /** Ring of collectors around the home star (0..1 of its full extent). */
+  dyson: number;
+  /** Shuttles flying between the home worlds now. */
+  shuttles: number;
+}
+
+export function civAt(A: number): CivState {
+  return {
+    station: smooth(CIV.station, CIV.station + 60 * S, A),
+    moonBase: smooth(CIV.moonBase, CIV.moonBase + 40 * S, A),
+    mining: smooth(CIV.mining, CIV.mining + 60 * S, A),
+    terraform: smooth(CIV.terraform[0], CIV.terraform[1], A),
+    giantMoons: smooth(CIV.giantMoons, CIV.giantMoons + 60 * S, A),
+    dyson: A < CIV.dyson[0] ? 0 : Math.min(1, 0.06 + 0.94 * ramp(CIV.dyson[0], CIV.dyson[1], A)),
+    shuttles: A < CIV.station ? 0 : Math.min(8, 1 + Math.floor((A - CIV.station) / (40 * MIN))),
+  };
 }
