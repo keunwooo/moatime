@@ -33,6 +33,8 @@ jobs:
           # a development build keeps the DEV panel and the dev-only hooks
           NODE_ENV: development
           BASE_PATH: /${{ github.event.repository.name }}/
+          # link previews need absolute image addresses
+          SITE_ORIGIN: https://${{ github.repository_owner }}.github.io
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist-pages

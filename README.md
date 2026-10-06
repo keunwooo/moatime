@@ -84,7 +84,7 @@ npx wrangler pages deploy dist --project-name moa-timer
 ```
 
 배포 후 할 일
-- 실제 도메인이 정해지면 `index.html`의 `og:image`를 절대 URL(`https://도메인/og/moa-og.jpg`)로 바꾸고 `<link rel="canonical">`을 추가하세요.
+- 링크 미리보기(카카오톡·슬랙·X 등)에는 그림의 전체 주소가 필요합니다. 빌드 환경 변수 `SITE_ORIGIN`(예: `https://moa.example.com`)을 넣으면 `og:image`·`twitter:image`가 전체 주소로 바뀌고 `og:url`과 `<link rel="canonical">`이 붙습니다(`vite.config.ts`). GitHub Pages 워크플로는 이미 넣고 있습니다. 미리보기 그림은 `public/og/moa-share.jpg`(1200×630)입니다.
 
 ## 광고 연결
 
