@@ -141,16 +141,21 @@ describe('cosmos schedule', () => {
   });
 
   it('the life planet and the galaxy change smoothly', () => {
+    // the largest step of each value between neighbouring 2-second samples (checked once at the end)
+    const lifeKeys = ['formed', 'magma', 'atmosphere', 'clouds', 'green', 'lights'] as const;
+    const galaxyKeys = ['clumps', 'merge', 'disk', 'arms', 'core', 'jets', 'satellites', 'neighbour', 'approach'] as const;
+    const jump: Record<string, number> = {};
     let prev = lifePlanetAt(4, 0);
     let prevG = galaxyAt(0);
     for (let A = 0; A < 30 * HOUR; A += 2 * S) {
       const l = lifePlanetAt(4, A);
       const g = galaxyAt(A);
-      for (const k of ['formed', 'magma', 'atmosphere', 'clouds', 'green', 'lights'] as const) expect(Math.abs(l[k] - prev[k])).toBeLessThan(0.2);
-      for (const k of ['clumps', 'merge', 'disk', 'arms', 'core', 'jets', 'satellites', 'neighbour', 'approach'] as const) expect(Math.abs(g[k] - prevG[k])).toBeLessThan(0.2);
+      for (const k of lifeKeys) jump[k] = Math.max(jump[k] ?? 0, Math.abs(l[k] - prev[k]));
+      for (const k of galaxyKeys) jump[`galaxy.${k}`] = Math.max(jump[`galaxy.${k}`] ?? 0, Math.abs(g[k] - prevG[k]));
       prev = l;
       prevG = g;
     }
+    for (const [k, v] of Object.entries(jump)) expect(v, k).toBeLessThan(0.2);
     expect(lifePlanetAt(4, 9 * HOUR).lights).toBeGreaterThan(0);
     expect(lifePlanetAt(4, 2 * HOUR).green).toBe(0);
   });
