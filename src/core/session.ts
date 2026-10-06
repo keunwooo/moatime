@@ -17,6 +17,11 @@ import type { SimBase } from '../sim/types';
 import { PACE, type PaceSeg } from '../world/pace';
 
 export type Mode = 'countdown' | 'stopwatch';
+/** What the timer area shows: a session mode, or the current time (no session, no growth). */
+export type ViewMode = Mode | 'clock';
+/** Growth speed: a session adds its running time × this to the world (fixed when it starts). */
+export const GROWTH_RATES = [1, 2, 5, 10] as const;
+export type GrowthRate = (typeof GROWTH_RATES)[number];
 /** Themes with a slot-and-worker simulation (a keeper or drones). Space is no longer offered as a theme, but its simulation and saves remain. */
 export type WorkTheme = 'forest' | 'space';
 /**
@@ -47,6 +52,8 @@ export interface Session {
   worldMsAtStart: number;
   /** True once E has been added to world.bankedMs (exactly once). */
   banked: boolean;
+  /** Growth speed of this session (absent: ×1). The world gains E × rate. */
+  rate?: GrowthRate;
   endReason: 'timer' | 'user' | null;
 }
 
@@ -55,6 +62,11 @@ export interface World {
   seed: number;
   rulesVersion: number;
   bankedMs: number;
+  /**
+   * Real focus time, kept from the first session with a growth speed above ×1 (absent: equal to
+   * bankedMs, as every earlier session grew at ×1).
+   */
+  focusMs?: number;
   createdAt: number;
   /**
    * Starting point of the work simulation: W = 0 for a new world; for a migrated world, the
@@ -94,7 +106,9 @@ export interface World {
 
 export interface Settings {
   theme: ThemeId;
-  mode: Mode;
+  mode: ViewMode;
+  /** Growth speed for the next sessions. */
+  growthRate: GrowthRate;
   /** Default countdown length (convenience only, never a limit). */
   countdownMs: number;
   ambientSound: boolean;
@@ -135,6 +149,7 @@ export interface Persisted {
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'forest',
   mode: 'countdown',
+  growthRate: 1,
   countdownMs: 25 * 60 * 1000,
   ambientSound: false,
   chime: false,
@@ -201,9 +216,26 @@ export function sessionEndAt(sess: Session): number | null {
   return sess.segmentStartedAt + (sess.targetMs - sess.accruedMs);
 }
 
-/** W: world time at `now`. The open session counts once, until it is banked. */
+/** The session's growth speed (×1 when absent). */
+export function sessionRate(sess: Session): number {
+  return sess.rate ?? 1;
+}
+
+/** World time this session adds: E × its growth speed. */
+export function sessionGrowth(sess: Session, now: number): number {
+  return sessionElapsed(sess, now) * sessionRate(sess);
+}
+
+/** W: world time at `now`. The open session counts once (at its growth speed), until it is banked. */
 export function worldTime(s: Persisted, now: number): number {
   const base = s.world.bankedMs;
+  if (!s.session || s.session.banked) return base;
+  return base + sessionGrowth(s.session, now);
+}
+
+/** Real focus time at `now` (W without the growth speed). */
+export function focusTime(s: Persisted, now: number): number {
+  const base = s.world.focusMs ?? s.world.bankedMs;
   if (!s.session || s.session.banked) return base;
   return base + sessionElapsed(s.session, now);
 }
@@ -218,7 +250,7 @@ export function sessionProgress(sess: Session, now: number): number | null {
 // Transitions. Each returns the same object when nothing changes, so callers can
 // treat repeated/duplicate requests as no-ops.
 
-export function start(s: Persisted, now: number, opts: { mode: Mode; targetMs: number | null }): Persisted {
+export function start(s: Persisted, now: number, opts: { mode: Mode; targetMs: number | null; rate?: GrowthRate }): Persisted {
   if (s.session && s.session.status !== 'completed') return s;
   let targetMs: number | null = null;
   if (opts.mode === 'countdown') {
@@ -239,7 +271,10 @@ export function start(s: Persisted, now: number, opts: { mode: Mode; targetMs: n
     banked: false,
     endReason: null,
   };
-  const pace = [...(s.world.pace ?? []), { w0: s.world.bankedMs, len: targetMs, w1: null }].slice(-PACE.keep);
+  const rate = opts.rate ?? 1;
+  if (rate !== 1) session.rate = rate;
+  // the segment covers the world time the session will add
+  const pace = [...(s.world.pace ?? []), { w0: s.world.bankedMs, len: targetMs === null ? null : targetMs * rate, w1: null }].slice(-PACE.keep);
   const date: [number, number] = [s.world.bankedMs, now];
   // the cosmos remembers when each session began (its constellations carry the date)
   const cosmos = s.world.cosmos ? { ...s.world.cosmos, dates: [...(s.world.cosmos.dates ?? []), date].slice(-PACE.keep) } : undefined;
@@ -283,11 +318,14 @@ export function resume(s: Persisted, now: number): Persisted {
 function bankAndClose(s: Persisted, now: number, reason: 'timer' | 'user', endedAt: number): Persisted {
   const sess = s.session!;
   const e = sessionElapsed(sess, now);
-  const bankedMs = sess.banked ? s.world.bankedMs : s.world.bankedMs + e;
+  const bankedMs = sess.banked ? s.world.bankedMs : s.world.bankedMs + e * sessionRate(sess);
   const pace = closePace(s.world.pace, bankedMs);
+  const world: World = pace ? { ...s.world, bankedMs, pace } : { ...s.world, bankedMs };
+  // real focus time is kept apart from the first faster session on
+  if (!sess.banked && (s.world.focusMs !== undefined || sessionRate(sess) !== 1)) world.focusMs = (s.world.focusMs ?? s.world.bankedMs) + e;
   return {
     ...s,
-    world: pace ? { ...s.world, bankedMs, pace } : { ...s.world, bankedMs },
+    world,
     session: {
       ...sess,
       status: 'completed',

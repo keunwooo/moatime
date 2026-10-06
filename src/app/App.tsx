@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { detailRows } from '../sim/describe';
 import { worldStats } from '../core/describe';
 import { formatDurationKo, spokenDuration } from '../core/duration';
+import { ClockPanel } from './components/ClockPanel';
 import { statusOf } from '../core/session';
 import { sound } from '../audio/sound';
 import { useAudioOwner } from '../audio/owner';
@@ -31,6 +32,29 @@ export function App() {
   const firstVisit = state.world.bankedMs === 0 && !state.session;
   // the front's scene reads its minimap setting from a tiny shared module
   frontPrefs.minimap = state.settings.minimap;
+  // "시계": the time over the landscape whenever no session is open
+  const clockView = state.settings.mode === 'clock' && status !== 'running' && status !== 'paused';
+  // ...and after a few quiet seconds, everything but the time fades away
+  const [calm, setCalm] = useState(false);
+  useEffect(() => {
+    if (!clockView) {
+      setCalm(false);
+      return;
+    }
+    let id = 0;
+    const wake = () => {
+      setCalm(false);
+      window.clearTimeout(id);
+      id = window.setTimeout(() => setCalm(true), 5000);
+    };
+    const events = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+    for (const ev of events) window.addEventListener(ev, wake, { passive: true });
+    wake();
+    return () => {
+      window.clearTimeout(id);
+      for (const ev of events) window.removeEventListener(ev, wake);
+    };
+  }, [clockView]);
 
   useEffect(() => {
     // a theme switch changes the UI colours at once; only the forest's night fades slowly
@@ -90,6 +114,8 @@ export function App() {
       if (el.closest('input, textarea, select, button, a, summary, details, [contenteditable], [role], dialog, .below')) return;
       if (window.scrollY > window.innerHeight * 0.5) return;
       e.preventDefault();
+      // the clock never starts a session (and Space does nothing there)
+      if (engine.getState().settings.mode === 'clock' && (engine.status() === 'idle' || engine.status() === 'completed')) return;
       const st = engine.status();
       if (st === 'idle') {
         sound.unlock();
@@ -107,7 +133,8 @@ export function App() {
     () => {
       if (!details) return '';
       const W = engine.worldTime();
-      return JSON.stringify([...envRows(theme, engine.getState().world.seed, W), ...detailRows(theme, simAt(theme, W), W)]);
+      const focus = { label: '집중 시간', value: `실제 ${formatDurationKo(engine.focusTime())} · 풍경 ${formatDurationKo(W)}` };
+      return JSON.stringify([focus, ...envRows(theme, engine.getState().world.seed, W), ...detailRows(theme, simAt(theme, W), W)]);
     },
     details && status === 'running',
     [details, theme, status, state.world.bankedMs, state.world.id, state.world.front?.cur?.origin, state.world.cosmos?.origin],
@@ -115,20 +142,20 @@ export function App() {
   const stats = useTicker(
     () => {
       const W = engine.worldTime();
-      return worldStats(theme, W, simAt(theme, W));
+      return worldStats(theme, W, simAt(theme, W), engine.focusTime());
     },
     status === 'running',
-    [theme, state.world.bankedMs, state.world.id, state.world.front?.cur?.origin, state.world.cosmos?.origin],
+    [theme, state.world.bankedMs, state.world.focusMs, state.world.id, state.world.front?.cur?.origin, state.world.cosmos?.origin],
   );
 
   return (
-    <div className={`stage theme-${theme} ${reduced ? 'reduced' : ''}`}>
+    <div className={`stage theme-${theme} ${reduced ? 'reduced' : ''} ${clockView ? 'clock-mode' : ''} ${calm ? 'calm' : ''}`}>
       <h1 className="sr-only">모아 — 집중한 시간이 자라는 풍경 타이머</h1>
       <SceneCanvas theme={theme} reducedMotion={reduced} cameraLock={state.settings.cameraLock} lowPower={state.settings.lowPower} effects={state.settings.effects} />
       <div className="veil" aria-hidden="true" />
       <TopBar state={state} onNewWorld={() => setConfirmNew(true)} onNewUniverse={() => setConfirmUniverse(true)} onNewWar={() => setConfirmWar(true)} />
       <main className="center" id="timer">
-        {status === 'completed' ? <Summary state={state} /> : <TimerPanel state={state} firstVisit={firstVisit} />}
+        {clockView ? <ClockPanel /> : status === 'completed' ? <Summary state={state} /> : <TimerPanel state={state} firstVisit={firstVisit} />}
       </main>
       <footer className="world-info">
         {details && rows && (

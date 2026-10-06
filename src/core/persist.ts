@@ -18,6 +18,7 @@
 import {
   DATA_VERSION,
   DEFAULT_SETTINGS,
+  GROWTH_RATES,
   initialState,
   type ArchivedWorld,
   type Persisted,
@@ -195,6 +196,8 @@ function validWorld(v: unknown, version: 1 | 2 | 3): World | null {
     createdAt: v.createdAt,
     base,
   };
+  // real focus time never exceeds the world time (growth speeds are ×1 or more)
+  if (isNonNeg(v.focusMs) && v.focusMs <= v.bankedMs) world.focusMs = v.focusMs;
   if (migratedFrom) world.migratedFrom = migratedFrom;
   const pace = validPace(v.pace, v.bankedMs);
   if (pace) world.pace = pace;
@@ -264,7 +267,7 @@ function validSession(v: unknown): Session | null {
   if (status === 'running' && segmentStartedAt === null) return null;
   const banked = v.banked === true;
   if (status === 'completed' && !banked) return null;
-  return {
+  const sess: Session = {
     id: v.id,
     mode,
     status,
@@ -277,6 +280,9 @@ function validSession(v: unknown): Session | null {
     banked,
     endReason: v.endReason === 'timer' || v.endReason === 'user' ? v.endReason : null,
   };
+  const rate = GROWTH_RATES.find((r) => r === v.rate);
+  if (rate !== undefined && rate !== 1) sess.rate = rate;
+  return sess;
 }
 
 function validSettings(v: unknown): Settings {
@@ -285,7 +291,9 @@ function validSettings(v: unknown): Settings {
   // the space theme was replaced by the front (its saves stay, its tab is gone)
   if (v.theme === 'forest' || v.theme === 'front' || v.theme === 'cosmos') s.theme = v.theme;
   else if (v.theme === 'space') s.theme = 'front';
-  if (v.mode === 'countdown' || v.mode === 'stopwatch') s.mode = v.mode;
+  if (v.mode === 'countdown' || v.mode === 'stopwatch' || v.mode === 'clock') s.mode = v.mode;
+  const rate = GROWTH_RATES.find((r) => r === v.growthRate);
+  if (rate !== undefined) s.growthRate = rate;
   if (isNonNeg(v.countdownMs) && v.countdownMs > 0 && Number.isSafeInteger(v.countdownMs)) s.countdownMs = v.countdownMs;
   if (typeof v.ambientSound === 'boolean') s.ambientSound = v.ambientSound;
   if (typeof v.chime === 'boolean') s.chime = v.chime;

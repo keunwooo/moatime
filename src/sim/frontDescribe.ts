@@ -3,7 +3,7 @@
  * the detail rows, the session summary and the footer numbers with the resource bar.
  */
 
-import { formatDurationKo } from '../core/duration';
+import { formatDurationKo, timeStats } from '../core/duration';
 import type { RaceId } from '../core/session';
 import {
   FRONT_STAGE_NAMES,
@@ -465,10 +465,10 @@ export function frontSummary(_before: FrontSim, after: FrontSim, w0: number, w1:
   return { title: '집중한 시간만큼 전선이 밀렸어요.', lines };
 }
 
-export function frontStats(s: FrontSim, W: number): string {
+export function frontStats(s: FrontSim, W: number, focus: number = W): string {
   const A = Math.max(0, W - s.origin);
   const v = frontAt(s.seed, s.race, A);
-  const parts = [`누적 ${formatDurationKo(W)}`];
+  const parts = [timeStats(W, focus)];
   if (A > 0) parts.push(`전쟁 ${formatDurationKo(A)}`);
   parts.push(`${v.stage}단계`);
   if (A > 0) parts.push(`점령률 ${pct(v.share)}`);

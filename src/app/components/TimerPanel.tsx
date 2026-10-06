@@ -1,6 +1,6 @@
 import { clockParts } from '../../core/duration';
 import { statusLine } from '../../core/describe';
-import { sessionElapsed, sessionProgress, sessionRemaining, statusOf, type Persisted } from '../../core/session';
+import { sessionElapsed, sessionProgress, sessionRate, sessionRemaining, statusOf, type Persisted } from '../../core/session';
 import { engine, useTicker } from '../runtime';
 import { simAt } from '../sim';
 import { sound } from '../../audio/sound';
@@ -8,7 +8,7 @@ import { PauseIcon, PlayIcon, ResetIcon, StopIcon } from './Icons';
 import { TimeSetter } from './TimeSetter';
 import { RaceCards } from './RaceCards';
 
-function Digits({ text }: { text: string }) {
+export function Digits({ text }: { text: string }) {
   return (
     <span className="digits" aria-hidden="true">
       {[...text].map((ch, i) =>
@@ -71,6 +71,8 @@ export function TimerPanel({ state, firstVisit }: { state: Persisted; firstVisit
 
   const label =
     mode === 'countdown' ? (sess ? '남은 시간' : '설정 시간') : '경과 시간';
+  // growth speed: the session's own once it runs, the setting before
+  const rate = sess && status !== 'completed' ? sessionRate(sess) : state.settings.growthRate;
 
   return (
     <section className={`panel status-${status}`} aria-label="타이머">
@@ -79,6 +81,7 @@ export function TimerPanel({ state, firstVisit }: { state: Persisted; firstVisit
         <span className="sr-only">
           {label} {display.days ? `${display.days}일 ` : ''}
           {display.clock}
+          {rate > 1 ? `, 성장 속도 ${rate}배` : ''}
         </span>
         {display.days !== null && (
           <span className="days" aria-hidden="true">
@@ -90,6 +93,7 @@ export function TimerPanel({ state, firstVisit }: { state: Persisted; firstVisit
       </div>
       <div className="clock-caption" aria-hidden="true">
         {label}
+        {rate > 1 && <span className="rate-badge">×{rate}</span>}
       </div>
       {mode === 'countdown' && sess && progress !== null && (
         <div className="progress" role="progressbar" aria-label="세션 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(progress * 100)}>

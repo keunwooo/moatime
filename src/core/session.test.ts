@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { TimerEngine, type EngineEvent } from './engine';
-import { MemoryStorage, STATE_KEY } from './persist';
+import { MemoryStorage, STATE_KEY, validatePersisted } from './persist';
 import { growthAt, rulesFor } from './rules';
-import { sessionElapsed, worldTime } from './session';
+import { focusTime, sessionGrowth, sessionElapsed, worldTime } from './session';
 import { clockParts, parseDuration } from './duration';
+import { rateLine } from './describe';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -439,5 +440,130 @@ describe('pure helpers', () => {
     const s = e.getState();
     expect(worldTime(s, h.now)).toBe(4 * MIN);
     expect(sessionElapsed(s.session!, h.now + 100 * MIN)).toBe(10 * MIN);
+  });
+});
+
+describe('growth rate (가속)', () => {
+  it('×5: the countdown ends after its real T, and the world grows five times as much', async () => {
+    const h = harness();
+    const e = h.open();
+    await e.updateSettings({ growthRate: 5 });
+    await e.start({ targetMs: 25 * MIN });
+    expect(e.getState().session!.rate).toBe(5);
+    await h.advance(10 * MIN);
+    expect(e.sessionElapsed()).toBe(10 * MIN);
+    expect(e.worldTime()).toBe(50 * MIN);
+    expect(e.focusTime()).toBe(10 * MIN);
+    await h.advance(15 * MIN);
+    expect(e.status()).toBe('completed');
+    const s = e.getState();
+    expect(s.world.bankedMs).toBe(125 * MIN);
+    expect(s.world.focusMs).toBe(25 * MIN);
+    expect(e.focusTime()).toBe(25 * MIN);
+    expect(sessionGrowth(s.session!, h.now)).toBe(125 * MIN);
+    // the session's segment is as long as the world time it covers
+    expect(s.world.pace!.at(-1)).toEqual({ w0: 0, len: 125 * MIN, w1: 125 * MIN });
+  });
+
+  it('the rate is fixed when a session starts; a change applies from the next one', async () => {
+    const h = harness();
+    const e = h.open();
+    await e.updateSettings({ growthRate: 2 });
+    await e.start({ targetMs: 10 * MIN });
+    await h.advance(5 * MIN);
+    await e.updateSettings({ growthRate: 10 });
+    expect(e.getState().settings.growthRate).toBe(10);
+    expect(e.getState().session!.rate).toBe(2);
+    await h.advance(5 * MIN);
+    await e.continueAfter();
+    expect(e.worldTime()).toBe(20 * MIN);
+    await e.start({ targetMs: MIN });
+    await h.advance(MIN);
+    expect(e.worldTime()).toBe(30 * MIN);
+    expect(e.focusTime()).toBe(11 * MIN);
+  });
+
+  it('a world that only ever ran at ×1 keeps its stored shape; focus time starts from it later', async () => {
+    const h = harness();
+    const e = h.open();
+    await e.updateSettings({ mode: 'stopwatch' });
+    await e.start();
+    await h.advance(30 * MIN);
+    await e.finish();
+    expect(e.getState().world.focusMs).toBeUndefined();
+    expect(e.getState().session!.rate).toBeUndefined();
+    expect(e.focusTime()).toBe(30 * MIN);
+    await e.continueAfter();
+    await e.updateSettings({ growthRate: 5 });
+    await e.start();
+    await h.advance(6 * MIN);
+    // a stopwatch segment stays open-ended
+    expect(e.getState().world.pace!.at(-1)).toEqual({ w0: 30 * MIN, len: null, w1: null });
+    await e.finish();
+    expect(e.getState().world.bankedMs).toBe(60 * MIN);
+    expect(e.getState().world.focusMs).toBe(36 * MIN);
+  });
+
+  it('a reload mid-session keeps the rate', async () => {
+    const h = harness();
+    const a = h.open();
+    await a.updateSettings({ growthRate: 10 });
+    await a.start({ targetMs: 30 * MIN });
+    await h.advance(3 * MIN);
+    const b = h.open();
+    expect(b.getState().session!.rate).toBe(10);
+    expect(b.worldTime()).toBe(30 * MIN);
+    expect(focusTime(b.getState(), h.now)).toBe(3 * MIN);
+  });
+
+  it('stored values are checked: unknown rates read as ×1, impossible focus time is dropped', () => {
+    const now = Date.UTC(2026, 9, 6);
+    const world = { id: 'w', seed: 1, rulesVersion: 2, bankedMs: 10 * MIN, createdAt: now, base: { W: 0, legacy: null } };
+    const session = { id: 's', mode: 'countdown', status: 'running', targetMs: 25 * MIN, accruedMs: 0, segmentStartedAt: now, startedAt: now, endedAt: null, worldMsAtStart: 10 * MIN, banked: false, endReason: null };
+    const raw = (w: object, sess: object, settings: object) => ({ v: 3, rev: 1, updatedAt: now, world: w, session: sess, settings, marks: { celebratedSessionId: null }, archive: [] });
+    const ok = validatePersisted(raw({ ...world, focusMs: 4 * MIN }, { ...session, rate: 5 }, { growthRate: 10, mode: 'clock' }), now)!;
+    expect(ok.world.focusMs).toBe(4 * MIN);
+    expect(ok.session!.rate).toBe(5);
+    expect(ok.settings.growthRate).toBe(10);
+    expect(ok.settings.mode).toBe('clock');
+    const bad = validatePersisted(raw({ ...world, focusMs: 11 * MIN }, { ...session, rate: 3 }, { growthRate: 7, mode: 'timer' }), now)!;
+    expect(bad.world.focusMs).toBeUndefined();
+    expect(bad.session!.rate).toBeUndefined();
+    expect(bad.settings.growthRate).toBe(1);
+    expect(bad.settings.mode).toBe('countdown');
+  });
+});
+
+describe('growth rate in words', () => {
+  it('the summary line adds up as shown and reads the number right', () => {
+    const sess = { id: 's', mode: 'countdown' as const, status: 'completed' as const, targetMs: null, accruedMs: 21_800, segmentStartedAt: null, startedAt: 0, endedAt: 0, worldMsAtStart: 0, banked: true, endReason: 'user' as const };
+    expect(rateLine(sess)).toBeNull();
+    expect(rateLine({ ...sess, rate: 5 })).toBe('21초 집중했고, 풍경은 ×5로 1분 45초만큼 자랐어요.');
+    expect(rateLine({ ...sess, rate: 10, accruedMs: 25.5 * MIN })).toBe('25분 30초 집중했고, 풍경은 ×10으로 4시간 15분만큼 자랐어요.');
+    expect(rateLine({ ...sess, rate: 2, accruedMs: 90 * MIN + 30_000 })).toBe('1시간 30분 집중했고, 풍경은 ×2로 3시간만큼 자랐어요.');
+  });
+});
+
+describe('clock mode', () => {
+  it('never starts a session and never grows the world', async () => {
+    const h = harness();
+    const e = h.open();
+    await e.updateSettings({ mode: 'clock' });
+    await e.start();
+    await h.advance(20 * MIN);
+    expect(e.status()).toBe('idle');
+    expect(e.getState().session).toBeNull();
+    expect(e.worldTime()).toBe(0);
+  });
+
+  it('cannot be switched to while a session is open', async () => {
+    const h = harness();
+    const e = h.open();
+    await e.start({ targetMs: 25 * MIN });
+    await e.updateSettings({ mode: 'clock' });
+    expect(e.getState().settings.mode).toBe('countdown');
+    await e.finish();
+    await e.updateSettings({ mode: 'clock' });
+    expect(e.getState().settings.mode).toBe('clock');
   });
 });

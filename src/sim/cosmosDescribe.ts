@@ -3,7 +3,7 @@
  * the detail rows, the session summary and the footer numbers.
  */
 
-import { formatDurationKo } from '../core/duration';
+import { formatDurationKo, timeStats } from '../core/duration';
 import {
   ageOf,
   CHRON,
@@ -234,9 +234,9 @@ export function cosmosSummary(before: CosmosSim, after: CosmosSim, w0: number, w
   return { title: '집중한 시간만큼 별이 태어났어요.', lines };
 }
 
-export function cosmosStats(s: CosmosSim, W: number): string {
+export function cosmosStats(s: CosmosSim, W: number, focus: number = W): string {
   const A = ageOf(s, W);
-  const parts = [`누적 ${formatDurationKo(W)}`];
+  const parts = [timeStats(W, focus)];
   if (A > 0) parts.push(`우주의 나이 ${formatDurationKo(A)}`);
   const done = systemsDone(s.seed, A);
   if (done > 0) parts.push(`항성계 ${done.toLocaleString('ko-KR')}곳`);

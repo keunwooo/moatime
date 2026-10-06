@@ -23,6 +23,10 @@ export class Minimap {
   private viewKey = '';
   private pingKey = '';
   private footT = Infinity;
+  /** The page's clock mode has gone quiet (everything but the time fades), and the fade so far. */
+  private calm = false;
+  private fade = 1;
+  private lastT = -1;
   private footAt = -1;
 
   constructor() {
@@ -34,7 +38,8 @@ export class Minimap {
 
   /**
    * The top of the page's footer text (stats, opened details) over the canvas, read twice a
-   * second: the footer wraps on narrower screens and grows when the details open.
+   * second: the footer wraps on narrower screens and grows when the details open. Reads at the
+   * same time whether the clock mode has gone quiet.
    */
   private footTop(t: number): number {
     if (t - this.footAt > 0.5 || t < this.footAt) {
@@ -42,6 +47,7 @@ export class Minimap {
       const foot = typeof document !== 'undefined' ? document.querySelector('.world-info') : null;
       const cv = foot ? document.querySelector('.stage canvas') : null;
       this.footT = foot && cv ? foot.getBoundingClientRect().top - cv.getBoundingClientRect().top : Infinity;
+      this.calm = typeof document !== 'undefined' && !!document.querySelector('.stage.calm');
     }
     return this.footT;
   }
@@ -68,7 +74,11 @@ export class Minimap {
     if (tex.ground && this.ground.texture !== tex.ground) this.ground.texture = tex.ground;
     if (this.terr.texture !== tex.territory) this.terr.texture = tex.territory;
     if (this.fog.texture !== tex.fog) this.fog.texture = tex.fog;
-    this.root.alpha = 0.8;
+    // fades with the footer when the clock mode goes quiet (about 1.2 s, like the page's own fade)
+    const dt = this.lastT < 0 ? 0 : Math.max(0, Math.min(0.1, f.t - this.lastT));
+    this.lastT = f.t;
+    this.fade = this.calm ? Math.max(0, this.fade - dt / 1.2) : Math.min(1, this.fade + dt / 0.4);
+    this.root.alpha = 0.8 * this.fade;
     // what the camera shows (redrawn only when it moves by a pixel)
     const vx0 = x + clamp01(view.x0) * w;
     const vy0 = y + clamp01(view.y0) * h;
