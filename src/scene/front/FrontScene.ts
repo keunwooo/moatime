@@ -145,7 +145,8 @@ export class FrontScene implements ThemeScene {
       L,
       w,
       h,
-      k: h / 820,
+      // art is sized for a 820 px tall view; a narrow portrait screen sizes it by its width too
+      k: aspect === 'wide' ? h / 820 : Math.min(h / 820, w / 560),
       tide: tideAt(seed, A),
       event: e,
       eventP: e ? clamp01((info.W - e.t0) / Math.max(1, e.t1 - e.t0)) : 0,

@@ -10,7 +10,7 @@ import { Rng } from '../../../core/rng';
 import { NAT, RIVAL_HOME, SITE_COUNT, HOME } from '../../../sim/front';
 import type { BiomeId } from '../../../sim/frontPlan';
 import { applyGrain, blobPoints, gouache, makeCanvas, softEllipse, type PaintCanvas } from '../../paint/brush';
-import { css, lighten, mix, shade, vary, type RGB } from '../../paint/color';
+import { css, hex, lighten, mix, shade, vary, type RGB } from '../../paint/color';
 import { fbmField } from '../noise';
 import { sitePos, type FrontLayout, type P } from '../layout';
 import { BIOME_PAL, LAKE } from '../palette';
@@ -203,6 +203,59 @@ export function paintTerrain(spec: TerrainSpec): PaintCanvas {
   }
   ctx.restore();
 
+  // ---- time crystals growing at the lake's waterline: small amber clusters with a mauve shade --
+  // (the lake is what the timer sits on; the clusters show at its ends and below the timer)
+  const lit = hex('#F6D58A');
+  const dark = hex('#8E6C8C');
+  const cr = new Rng(planetSeed ^ 0x51c7);
+  for (let i = 0; i < 30; i++) {
+    const a = (i / 30) * Math.PI * 2 + cr.range(-0.08, 0.08);
+    const x = (lake.c.x + Math.cos(a) * lake.r.x * cr.range(0.97, 1.06)) * w;
+    const y = (lake.c.y + Math.sin(a) * lake.r.y * cr.range(0.97, 1.06)) * h;
+    const k = (0.8 + 0.3 * (y / h)) * scale * cr.range(0.7, 1.25);
+    const n = 2 + Math.floor(cr.range(0, 3));
+    softEllipse(ctx, x, y + k, 10 * k, 2.8 * k, shade(pal.cliff, 0.55), 0.35, 0);
+    for (let j = 0; j < n; j++) {
+      const ox = (j - (n - 1) / 2) * 5.2 * k + cr.range(-1, 1) * k;
+      const hgt = cr.range(9, 17) * k * (j === n >> 1 ? 1.35 : 1);
+      const wd = cr.range(2.6, 3.9) * k;
+      const tipX = x + ox + (cr.range(-0.2, 0.2) + ox / (12 * k) * 0.4) * hgt;
+      const tipY = y - hgt;
+      const mid = x + ox + (tipX - x - ox) * 0.08;
+      // the lit face on the left, the shaded face on the right, a pale edge between them
+      ctx.fillStyle = css(lit, 0.92);
+      ctx.beginPath();
+      ctx.moveTo(x + ox - wd, y);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(mid, y + 0.6 * k);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = css(dark, 0.92);
+      ctx.beginPath();
+      ctx.moveTo(mid, y + 0.6 * k);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(x + ox + wd, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = css(lighten(lit, 0.5), 0.55);
+      ctx.lineWidth = 0.8 * k;
+      ctx.beginPath();
+      ctx.moveTo(mid, y + 0.6 * k);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+    }
+  }
+  // their light on the water
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 30; i += 2) {
+    const a = (i / 30) * Math.PI * 2;
+    const x = (lake.c.x + Math.cos(a) * lake.r.x * 0.9) * w;
+    const y = (lake.c.y + Math.sin(a) * lake.r.y * 0.9) * h;
+    softEllipse(ctx, x, y, 26 * scale, 8 * scale, LAKE.mote, 0.05, 0);
+  }
+  ctx.restore();
+
   // ---- the planet's own scatter ------------------------------------------------------------
   const clear = (x: number, y: number, m = 0.04) => {
     const p = { x: x / w, y: y / h };
@@ -268,20 +321,30 @@ export function paintTerrain(spec: TerrainSpec): PaintCanvas {
       scatter(50, (x, y, k) => rockBlob(x, y, k * scale * r.range(0.6, 1.2), pal.rock));
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 18; i++) {
+      // lava seams: a wide soft glow under a thin bright core, forking now and then
+      for (let i = 0; i < 40; i++) {
         let x = r.range(0, w);
         let y = r.range(h * L.top, h);
         if (!clear(x, y)) continue;
-        ctx.strokeStyle = css(pal.feature, 0.5);
-        ctx.lineWidth = 2 * scale;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        for (let k = 0; k < 4; k++) {
-          x += r.range(-16, 16) * scale;
-          y += r.range(-3, 5) * scale;
-          ctx.lineTo(x, y);
+        const pts: [number, number][] = [[x, y]];
+        const n = 3 + Math.floor(r.range(0, 4));
+        for (let k = 0; k < n; k++) {
+          x += r.range(-18, 18) * scale;
+          y += r.range(-3, 6) * scale;
+          pts.push([x, y]);
         }
-        ctx.stroke();
+        for (const [width, alpha] of [
+          [9, 0.1],
+          [4, 0.26],
+          [1.6, 0.75],
+        ] as const) {
+          ctx.strokeStyle = css(width < 2 ? lighten(pal.feature, 0.35) : pal.feature, alpha);
+          ctx.lineWidth = width * scale;
+          ctx.beginPath();
+          ctx.moveTo(pts[0][0], pts[0][1]);
+          for (const [px2, py2] of pts.slice(1)) ctx.lineTo(px2, py2);
+          ctx.stroke();
+        }
       }
       ctx.restore();
       break;

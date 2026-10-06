@@ -22,12 +22,28 @@ export class Minimap {
   private size = '';
   private viewKey = '';
   private pingKey = '';
+  private footT = Infinity;
+  private footAt = -1;
 
   constructor() {
     const inner = new Container();
     inner.addChild(this.ground, this.terr, this.fog);
     inner.mask = this.maskG;
     this.root.addChild(this.frame, inner, this.maskG, this.view, this.pings);
+  }
+
+  /**
+   * The top of the page's footer text (stats, opened details) over the canvas, read twice a
+   * second: the footer wraps on narrower screens and grows when the details open.
+   */
+  private footTop(t: number): number {
+    if (t - this.footAt > 0.5 || t < this.footAt) {
+      this.footAt = t;
+      const foot = typeof document !== 'undefined' ? document.querySelector('.world-info') : null;
+      const cv = foot ? document.querySelector('.stage canvas') : null;
+      this.footT = foot && cv ? foot.getBoundingClientRect().top - cv.getBoundingClientRect().top : Infinity;
+    }
+    return this.footT;
   }
 
   update(f: FrontFrame, tex: { ground: Texture | null; territory: Texture; fog: Texture }, view: { x0: number; y0: number; x1: number; y1: number }, pingAt: P | null, pingP: number, show: boolean) {
@@ -37,7 +53,7 @@ export class Minimap {
     const w = m.w;
     const h = m.h;
     const x = m.x;
-    const y = f.h - m.yFromBottom - h;
+    const y = Math.round(Math.min(f.h - m.yFromBottom - h, this.footTop(f.t) - 12 - h));
     const sz = `${x},${y},${w},${h}`;
     if (sz !== this.size) {
       this.size = sz;

@@ -325,6 +325,7 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
   min-height: 34px;
   padding: 0 13px;
   border: 0;
@@ -1251,4 +1252,14 @@ input {
 .reduced * {
   transition-duration: 0.01ms !important;
   animation-duration: 0.01ms !important;
+}
+
+@media (max-width: 420px) {
+  /* the theme names alone fit a phone's width on one line */
+  .seg button svg {
+    display: none;
+  }
+  .seg button {
+    padding: 0 10px;
+  }
 }

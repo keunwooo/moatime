@@ -95,7 +95,7 @@ export const LAYOUT: Record<AspectClass, FrontLayout> = {
     sites: [...TALL_LEFT, ...mirror(TALL_LEFT)],
     sky: [0, 0.08],
     top: 0.075,
-    minimap: { w: 96, h: 68, x: 12, yFromBottom: 50 },
+    minimap: { w: 96, h: 68, x: 12, yFromBottom: 122 },
     unitH: 0.012,
     cliff: 0.018,
   },
