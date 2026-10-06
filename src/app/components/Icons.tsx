@@ -19,10 +19,11 @@ export const LeafIcon = () => (
   </svg>
 );
 
-export const MoonIcon = () => (
+export const FlagIcon = () => (
   <svg {...base}>
-    <path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5Z" />
-    <circle cx="15.5" cy="6.5" r="0.6" fill="currentColor" />
+    <path d="M6 21V4" />
+    <path d="M6 4.5c3-1.6 5 1.4 8.2 0 1.6-.7 2.8-.7 3.8-.3v8.3c-1-.4-2.2-.4-3.8.3-3.2 1.4-5.2-1.6-8.2 0" />
+    <path d="M4 21h4" />
   </svg>
 );
 

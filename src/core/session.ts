@@ -11,16 +11,23 @@
  */
 
 import { CURRENT_RULES_VERSION } from './rules';
-import { randomId, randomSeed } from './rng';
+import { hash32, randomId, randomSeed } from './rng';
 import type { EffectLevel } from '../sim/config';
 import type { SimBase } from '../sim/types';
 import { PACE, type PaceSeg } from '../world/pace';
 
 export type Mode = 'countdown' | 'stopwatch';
-/** Themes with a work simulation (a keeper or drones). */
+/** Themes with a slot-and-worker simulation (a keeper or drones). Space is no longer offered as a theme, but its simulation and saves remain. */
 export type WorkTheme = 'forest' | 'space';
-/** All themes: the cosmos grows with the universe's own age (see `cosmosOrigin`). */
-export type ThemeId = WorkTheme | 'cosmos';
+/**
+ * Themes that can be chosen: the cosmos grows with the universe's own age (see `cosmosOrigin`), the
+ * front with the war's own time (see `frontOrigin`).
+ */
+export type ThemeId = 'forest' | 'front' | 'cosmos';
+/** Every simulation the app still knows, including the retired space theme (kept for its saves). */
+export type SimTheme = ThemeId | 'space';
+/** The front's peoples: 0 개척 연합, 1 균사 군체, 2 공명단. */
+export type RaceId = 0 | 1 | 2;
 export type Status = 'idle' | 'running' | 'paused' | 'completed';
 export type MotionPref = 'system' | 'reduce' | 'full';
 
@@ -70,6 +77,19 @@ export interface World {
     /** Origins of earlier universes ("새 우주 시작"), so their constellations stay on record. */
     past?: number[];
   };
+  /**
+   * The front theme's war: when its time began and the people commanded (set when a people is
+   * chosen, or by the seed when a session starts without a choice). No `cur` means the choice is
+   * still open. Its time is A = W − cur.origin.
+   */
+  front?: {
+    cur?: { origin: number; race: RaceId };
+    resets: number;
+    /** [world time, wall-clock time] at the start of each session since (operation records). */
+    dates?: [number, number][];
+    /** Earlier wars ("새 전쟁 시작"), so their operations stay on record. */
+    past?: { origin: number; race: RaceId }[];
+  };
 }
 
 export interface Settings {
@@ -85,6 +105,8 @@ export interface Settings {
   showDays: boolean;
   /** Density of decorative effects only (never production). */
   effects: EffectLevel;
+  /** The front theme's minimap. */
+  minimap: boolean;
 }
 
 export interface Marks {
@@ -121,6 +143,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lowPower: false,
   showDays: false,
   effects: 'default',
+  minimap: true,
 };
 
 /** Largest timestamp a JS Date can represent. */
@@ -217,9 +240,17 @@ export function start(s: Persisted, now: number, opts: { mode: Mode; targetMs: n
     endReason: null,
   };
   const pace = [...(s.world.pace ?? []), { w0: s.world.bankedMs, len: targetMs, w1: null }].slice(-PACE.keep);
+  const date: [number, number] = [s.world.bankedMs, now];
   // the cosmos remembers when each session began (its constellations carry the date)
-  const cosmos = s.world.cosmos ? { ...s.world.cosmos, dates: [...(s.world.cosmos.dates ?? []), [s.world.bankedMs, now] as [number, number]].slice(-PACE.keep) } : undefined;
-  return { ...s, world: cosmos ? { ...s.world, pace, cosmos } : { ...s.world, pace }, session };
+  const cosmos = s.world.cosmos ? { ...s.world.cosmos, dates: [...(s.world.cosmos.dates ?? []), date].slice(-PACE.keep) } : undefined;
+  // the front: a session started before a people was chosen commands the seed's people
+  let front = s.world.front;
+  if (s.settings.theme === 'front' && !front?.cur) front = { ...(front ?? { resets: 0 }), cur: { origin: s.world.bankedMs, race: defaultRace(s.world.seed) } };
+  if (front) front = { ...front, dates: [...(front.dates ?? []), date].slice(-PACE.keep) };
+  const world: World = { ...s.world, pace };
+  if (cosmos) world.cosmos = cosmos;
+  if (front) world.front = front;
+  return { ...s, world, session };
 }
 
 /** Closes the open pace segment at world time W (a session that added nothing is dropped). */
@@ -335,6 +366,53 @@ export function newUniverse(s: Persisted, now: number): Persisted {
   const old = s.world.cosmos;
   const past = old ? [...(old.past ?? []), old.origin].slice(-20) : undefined;
   return { ...s, world: { ...s.world, cosmos: { origin: worldTime(s, now), resets, dates: old?.dates, past } } };
+}
+
+/** The people the seed suggests (highlighted on the cards, used when nobody chose). */
+export function defaultRace(seed: number): RaceId {
+  return (hash32(seed, 0xf20) % 3) as RaceId;
+}
+
+/** The front's current war, if a people has been chosen. */
+export function frontWar(s: Persisted): { origin: number; race: RaceId } | null {
+  return s.world.front?.cur ?? null;
+}
+
+/** World time at which the front's war began (W while no people has been chosen yet). */
+export function frontOrigin(s: Persisted, now: number): number {
+  return s.world.front?.cur ? s.world.front.cur.origin : worldTime(s, now);
+}
+
+/** The people commanded (the seed's suggestion while none has been chosen). */
+export function frontRace(s: Persisted): RaceId {
+  return s.world.front?.cur ? s.world.front.cur.race : defaultRace(s.world.seed);
+}
+
+/** Choosing a people begins the war now. A choice already made stays until "새 전쟁 시작". */
+export function chooseRace(s: Persisted, now: number, race: RaceId): Persisted {
+  if (s.world.front?.cur || (race !== 0 && race !== 1 && race !== 2)) return s;
+  const front = { ...(s.world.front ?? { resets: 0 }), cur: { origin: worldTime(s, now), race } };
+  return { ...s, world: { ...s.world, front } };
+}
+
+/**
+ * The front shown during a session that has no war yet (the theme was switched while running, here
+ * or in another tab): the seed's people begins it now, since the cards cannot be shown then.
+ */
+export function withFrontOrigin(s: Persisted, now: number): Persisted {
+  if (s.settings.theme !== 'front' || s.world.front?.cur) return s;
+  if (!s.session || s.session.status === 'completed') return s;
+  return chooseRace(s, now, defaultRace(s.world.seed));
+}
+
+/** "새 전쟁 시작": the war is put on record and the choice of people opens again. Other themes and W stay. */
+export function newWar(s: Persisted): Persisted {
+  const old = s.world.front;
+  if (!old?.cur) return s;
+  const past = [...(old.past ?? []), old.cur].slice(-20);
+  const front: NonNullable<World['front']> = { resets: old.resets + 1, past };
+  if (old.dates) front.dates = old.dates;
+  return { ...s, world: { ...s.world, front } };
 }
 
 /**

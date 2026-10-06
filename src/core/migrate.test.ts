@@ -214,7 +214,8 @@ describe('data migration without the replay module', () => {
     const before = storage.getItem(LEGACY_STATE_KEY);
     const s = loadState(storage, NOW).state;
     expect(s.world.base).toEqual({ W: banked, legacy: { units: 5, partial: 0.5 } });
-    expect(s.settings.theme).toBe('space');
+    // the space theme was replaced by the front: its saved choice now opens the front
+    expect(s.settings.theme).toBe('front');
     expect(s.settings.chime).toBe(true);
     expect(s.settings.effects).toBe('default');
     expect(storage.getItem(LEGACY_STATE_KEY)).toBe(before);

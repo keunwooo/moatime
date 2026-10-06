@@ -9,7 +9,7 @@
  */
 
 import { hash32 } from '../core/rng';
-import type { ThemeId } from '../core/session';
+import type { SimTheme } from '../core/session';
 
 export const PRIORITY = { NORMAL: 0, AMBIENT: 1, WEATHER: 2, RARE: 3, COMBAT: 4 } as const;
 export type Priority = (typeof PRIORITY)[keyof typeof PRIORITY];
@@ -29,7 +29,7 @@ export interface EventCtx {
 
 export interface EventDef {
   kind: string;
-  theme: ThemeId;
+  theme: SimTheme;
   prio: Priority;
   /** A candidate only every `grid` blocks (at a seed-dependent offset). */
   grid: number;
@@ -61,7 +61,7 @@ function kindHash(kind: string): number {
 const memo = new WeakMap<readonly EventDef[], Map<string, WorldEvent | null>>();
 
 /** The event of block b (or null). */
-export function eventOfBlock(defs: readonly EventDef[], theme: ThemeId, seed: number, b: number): WorldEvent | null {
+export function eventOfBlock(defs: readonly EventDef[], theme: SimTheme, seed: number, b: number): WorldEvent | null {
   if (b < 0) return null;
   let m = memo.get(defs);
   if (!m) {
@@ -77,7 +77,7 @@ export function eventOfBlock(defs: readonly EventDef[], theme: ThemeId, seed: nu
   return e;
 }
 
-function computeBlock(defs: readonly EventDef[], theme: ThemeId, seed: number, b: number): WorldEvent | null {
+function computeBlock(defs: readonly EventDef[], theme: SimTheme, seed: number, b: number): WorldEvent | null {
   let best: WorldEvent | null = null;
   let bestTie = -1;
   for (const d of defs) {
@@ -100,14 +100,14 @@ function computeBlock(defs: readonly EventDef[], theme: ThemeId, seed: number, b
 }
 
 /** The headline event running at W, if any. */
-export function eventAt(defs: readonly EventDef[], theme: ThemeId, seed: number, W: number): WorldEvent | null {
+export function eventAt(defs: readonly EventDef[], theme: SimTheme, seed: number, W: number): WorldEvent | null {
   const b = Math.floor(Math.max(0, W) / BLOCK_MS);
   const e = eventOfBlock(defs, theme, seed, b);
   return e && W >= e.t0 && W < e.t1 ? e : null;
 }
 
 /** Events starting in [W0, W1), in order (dev tools, tests). */
-export function eventsIn(defs: readonly EventDef[], theme: ThemeId, seed: number, W0: number, W1: number): WorldEvent[] {
+export function eventsIn(defs: readonly EventDef[], theme: SimTheme, seed: number, W0: number, W1: number): WorldEvent[] {
   const out: WorldEvent[] = [];
   const b0 = Math.floor(Math.max(0, W0) / BLOCK_MS);
   const b1 = Math.floor(Math.max(0, W1) / BLOCK_MS);

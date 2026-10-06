@@ -241,9 +241,9 @@ describe('accumulation', () => {
     const e = h.open();
     await e.start({ targetMs: HOUR });
     await h.advance(10 * MIN);
-    await e.updateSettings({ theme: 'space' });
+    await e.updateSettings({ theme: 'front' });
     await e.updateSettings({ theme: 'forest' });
-    await e.updateSettings({ theme: 'space' });
+    await e.updateSettings({ theme: 'front' });
     expect(e.worldTime()).toBe(10 * MIN);
     await e.finish();
     expect(e.getState().world.bankedMs).toBe(10 * MIN);

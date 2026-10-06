@@ -6,7 +6,7 @@
  * so trigonometry is fine here.
  */
 
-import type { ThemeId } from '../core/session';
+import type { SimTheme } from '../core/session';
 import { WORLD } from '../sim/config';
 
 export type DayPhase = 'night' | 'dawn' | 'day' | 'dusk';
@@ -45,12 +45,13 @@ const smooth = (a: number, b: number, x: number) => {
 };
 const frac = (x: number) => x - Math.floor(x);
 
-export function dayLength(theme: ThemeId): number {
-  return theme === 'space' ? WORLD.spaceDayMs : WORLD.forestDayMs;
+export function dayLength(theme: SimTheme): number {
+  // the front's planets turn like the old space colony's (32 minutes)
+  return theme === 'space' || theme === 'front' ? WORLD.spaceDayMs : WORLD.forestDayMs;
 }
 
 /** Continuous day count at W (fractional part = phase of the day). */
-export function dayPosition(theme: ThemeId, W: number): number {
+export function dayPosition(theme: SimTheme, W: number): number {
   return WORLD.startPhase + Math.max(0, W) / dayLength(theme);
 }
 
@@ -67,7 +68,7 @@ function bodyAt(q: number): Body {
   return { elev: -0.45 * Math.sin(Math.PI * u), az: Math.cos(Math.PI * u) };
 }
 
-export function dayAt(theme: ThemeId, W: number): DayState {
+export function dayAt(theme: SimTheme, W: number): DayState {
   const pos = dayPosition(theme, W);
   const day = Math.floor(pos);
   const p = pos - day;
@@ -101,7 +102,7 @@ export function dayAt(theme: ThemeId, W: number): DayState {
 }
 
 /** First W ≥ from at which the day phase reaches q (0..1). */
-export function nextPhaseAt(theme: ThemeId, from: number, q: number): number {
+export function nextPhaseAt(theme: SimTheme, from: number, q: number): number {
   const L = dayLength(theme);
   const pos = dayPosition(theme, from);
   let target = Math.floor(pos) + q;
@@ -110,7 +111,7 @@ export function nextPhaseAt(theme: ThemeId, from: number, q: number): number {
 }
 
 /** A clock face for the dev panel and status text ("07:12"). */
-export function clockText(theme: ThemeId, W: number): string {
+export function clockText(theme: SimTheme, W: number): string {
   const p = frac(dayPosition(theme, W));
   const mins = Math.floor(p * 24 * 60);
   return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;

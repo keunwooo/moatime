@@ -21,6 +21,7 @@ import {
   initialState,
   type ArchivedWorld,
   type Persisted,
+  type RaceId,
   type Session,
   type Settings,
   type World,
@@ -211,6 +212,26 @@ function validWorld(v: unknown, version: 1 | 2 | 3): World | null {
       if (past.length) world.cosmos.past = past;
     }
   }
+  const f = v.front;
+  if (isObj(f)) {
+    const isRace = (r: unknown): r is RaceId => r === 0 || r === 1 || r === 2;
+    const lim = v.bankedMs + 400 * 24 * 3600_000;
+    const front: NonNullable<World['front']> = { resets: isNonNeg(f.resets) ? Math.floor(f.resets) : 0 };
+    const c = f.cur;
+    if (isObj(c) && isNonNeg(c.origin) && c.origin <= lim && isRace(c.race)) front.cur = { origin: c.origin, race: c.race };
+    if (Array.isArray(f.dates)) {
+      const dates = f.dates.filter((d): d is [number, number] => Array.isArray(d) && d.length === 2 && isNonNeg(d[0]) && isNum(d[1])).slice(-PACE.keep);
+      if (dates.length) front.dates = dates;
+    }
+    if (Array.isArray(f.past)) {
+      const past = f.past
+        .filter((x): x is { origin: number; race: RaceId } => isObj(x) && isNonNeg(x.origin) && x.origin <= lim && isRace(x.race))
+        .map((x) => ({ origin: x.origin, race: x.race }))
+        .slice(-20);
+      if (past.length) front.past = past;
+    }
+    world.front = front;
+  }
   return world;
 }
 
@@ -261,7 +282,9 @@ function validSession(v: unknown): Session | null {
 function validSettings(v: unknown): Settings {
   const s: Settings = { ...DEFAULT_SETTINGS };
   if (!isObj(v)) return s;
-  if (v.theme === 'forest' || v.theme === 'space' || v.theme === 'cosmos') s.theme = v.theme;
+  // the space theme was replaced by the front (its saves stay, its tab is gone)
+  if (v.theme === 'forest' || v.theme === 'front' || v.theme === 'cosmos') s.theme = v.theme;
+  else if (v.theme === 'space') s.theme = 'front';
   if (v.mode === 'countdown' || v.mode === 'stopwatch') s.mode = v.mode;
   if (isNonNeg(v.countdownMs) && v.countdownMs > 0 && Number.isSafeInteger(v.countdownMs)) s.countdownMs = v.countdownMs;
   if (typeof v.ambientSound === 'boolean') s.ambientSound = v.ambientSound;
@@ -271,6 +294,7 @@ function validSettings(v: unknown): Settings {
   if (typeof v.lowPower === 'boolean') s.lowPower = v.lowPower;
   if (typeof v.showDays === 'boolean') s.showDays = v.showDays;
   if (v.effects === 'low' || v.effects === 'default' || v.effects === 'rich') s.effects = v.effects;
+  if (typeof v.minimap === 'boolean') s.minimap = v.minimap;
   return s;
 }
 

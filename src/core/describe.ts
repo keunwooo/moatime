@@ -1,10 +1,12 @@
 /** Words for the status line, the session summary and the footer (from the simulation). */
 
 import { formatDurationKo } from './duration';
-import type { Persisted, Session, Status, ThemeId } from './session';
+import type { Persisted, Session, SimTheme as ThemeId, Status } from './session';
 import type { ForestSim } from '../sim/forest';
 import type { SpaceSim } from '../sim/space';
 import type { CosmosSim } from '../sim/cosmos';
+import type { FrontSim } from '../sim/front';
+import { frontIdleLine, frontStats, frontSummary } from '../sim/frontDescribe';
 import { workLine, type AnySim } from '../sim/describe';
 import { cosmosIdleLine, cosmosStats, cosmosSummary } from '../sim/cosmosDescribe';
 import { RULES_UNITS_PER_CLUSTER, RULES_UNITS_PER_ZONE } from '../sim/units';
@@ -23,6 +25,7 @@ export function josa(word: string, withBatchim: string, without: string): string
 export const NOUN: Record<ThemeId, { unit: string; counter: string; cluster: string; zone: string; place: string }> = {
   forest: { unit: '나무', counter: '그루', cluster: '군락', zone: '숲 구역', place: '숲' },
   space: { unit: '건물', counter: '개', cluster: '전초기지', zone: '정착 구역', place: '기지' },
+  front: { unit: '건물', counter: '채', cluster: '기지', zone: '행성', place: '전선' },
   cosmos: { unit: '항성계', counter: '곳', cluster: '성단', zone: '은하 구역', place: '우주' },
 };
 
@@ -32,12 +35,15 @@ export function statusLine(theme: ThemeId, status: Status, sim: AnySim, W: numbe
       return workLine(theme, sim, W);
     case 'paused':
       if (theme === 'cosmos') return '잠시 멈춤 · 우주도 함께 숨을 고르고 있어요';
+      if (theme === 'front') return '잠시 멈춤 · 전장의 시간이 멈췄어요';
       return theme === 'forest' ? '잠시 멈춤 · 숲지기도 함께 쉬고 있어요' : '잠시 멈춤 · 작업 드론도 함께 쉬고 있어요';
     case 'completed':
       if (theme === 'cosmos') return '집중한 시간만큼 별이 태어났어요.';
+      if (theme === 'front') return '집중한 시간만큼 전선이 밀렸어요.';
       return theme === 'forest' ? '오늘의 시간이 숲에 남았어요.' : '오늘의 시간이 기지에 남았어요.';
     default:
       if (theme === 'cosmos') return cosmosIdleLine(sim as CosmosSim, W);
+      if (theme === 'front') return frontIdleLine(sim as FrontSim, W);
       if (firstVisit) {
         return theme === 'forest' ? '샘가의 작은 공터에서 숲지기가 기다려요' : '착륙선 옆에서 작업 드론이 기다려요';
       }
@@ -53,8 +59,10 @@ export interface SessionSummary {
 }
 
 export function summarize(theme: ThemeId, s: Persisted, sess: Session, before: AnySim, after: AnySim): SessionSummary {
-  if (theme === 'cosmos') {
-    const c = cosmosSummary(before as CosmosSim, after as CosmosSim, sess.worldMsAtStart, sess.worldMsAtStart + sess.accruedMs);
+  if (theme === 'cosmos' || theme === 'front') {
+    const w0 = sess.worldMsAtStart;
+    const w1 = sess.worldMsAtStart + sess.accruedMs;
+    const c = theme === 'cosmos' ? cosmosSummary(before as CosmosSim, after as CosmosSim, w0, w1) : frontSummary(before as FrontSim, after as FrontSim, w0, w1);
     return {
       title: c.title,
       added: formatDurationKo(sess.accruedMs, { seconds: sess.accruedMs < 3600_000 }),
@@ -106,6 +114,7 @@ export function summarize(theme: ThemeId, s: Persisted, sess: Session, before: A
 
 export function worldStats(theme: ThemeId, W: number, sim: AnySim): string {
   if (theme === 'cosmos') return cosmosStats(sim as CosmosSim, W);
+  if (theme === 'front') return frontStats(sim as FrontSim, W);
   const n = NOUN[theme];
   const parts = [`누적 ${formatDurationKo(W)}`];
   const units = sim.done;

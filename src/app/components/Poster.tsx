@@ -7,7 +7,7 @@ import type { ThemeId } from '../../core/session';
 export function Poster({ theme, visible }: { theme: ThemeId; visible: boolean }) {
   return (
     <div className={`poster ${visible ? 'show' : ''}`} aria-hidden="true">
-      {theme === 'forest' ? <ForestPoster /> : theme === 'space' ? <SpacePoster /> : <CosmosPoster />}
+      {theme === 'forest' ? <ForestPoster /> : theme === 'front' ? <FrontPoster /> : <CosmosPoster />}
     </div>
   );
 }
@@ -53,63 +53,54 @@ function ForestPoster() {
   );
 }
 
-function SpacePoster() {
+function FrontPoster() {
+  // the battlefield seen from high above: rival plateaus far up, the time-crystal lake behind the
+  // timer, the home plateau near; fog over most of it (a war's first moment)
   return (
     <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice" width="100%" height="100%">
       <defs>
-        <linearGradient id="ps-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#110f27" />
-          <stop offset="0.55" stopColor="#1d1b3c" />
-          <stop offset="0.72" stopColor="#332d55" />
-          <stop offset="1" stopColor="#463c6c" />
+        <linearGradient id="pfr-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#1b1a2c" />
+          <stop offset="1" stopColor="#3a2a33" />
         </linearGradient>
-        <radialGradient id="ps-giant" cx="0.4" cy="0.38" r="0.65">
-          <stop offset="0" stopColor="#d6ecee" />
-          <stop offset="0.6" stopColor="#afd0d4" />
-          <stop offset="1" stopColor="#7c86a8" />
+        <linearGradient id="pfr-ground" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#8a5a44" />
+          <stop offset="1" stopColor="#c98a5a" />
+        </linearGradient>
+        <radialGradient id="pfr-lake" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#24324f" />
+          <stop offset="1" stopColor="#1e2a44" />
         </radialGradient>
-        <filter id="ps-paper">
+        <radialGradient id="pfr-fog" cx="0.5" cy="0.92" r="0.75">
+          <stop offset="0.25" stopColor="#2b2733" stopOpacity="0" />
+          <stop offset="0.6" stopColor="#2b2733" stopOpacity="0.72" />
+          <stop offset="1" stopColor="#2b2733" stopOpacity="0.92" />
+        </radialGradient>
+        <filter id="pfr-paper">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" />
-          <feColorMatrix values="0 0 0 0 0.6 0 0 0 0 0.6 0 0 0 0 0.7 0 0 0 0.06 0" />
+          <feColorMatrix values="0 0 0 0 0.2 0 0 0 0 0.15 0 0 0 0 0.12 0 0 0 0.1 0" />
         </filter>
       </defs>
-      <rect width="1600" height="900" fill="url(#ps-sky)" />
-      <g fill="#f2f1e9">
-        {[
-          [120, 90, 1.6],
-          [300, 160, 1.1],
-          [520, 70, 1.4],
-          [700, 200, 0.9],
-          [930, 110, 1.3],
-          [1110, 60, 1],
-          [1290, 150, 1.5],
-          [1450, 90, 1.1],
-          [1530, 240, 0.9],
-          [210, 300, 0.8],
-          [1380, 320, 0.8],
-        ].map(([x, y, r], i) => (
-          <circle key={i} cx={x} cy={y} r={r} opacity="0.75" />
-        ))}
+      <rect width="1600" height="900" fill="url(#pfr-sky)" />
+      <rect y="100" width="1600" height="800" fill="url(#pfr-ground)" />
+      <path d="M0 110 L420 110 L380 260 L0 290Z" fill="#7a4a3a" />
+      <path d="M1600 110 L1180 110 L1220 260 L1600 290Z" fill="#7a4a3a" />
+      <ellipse cx="800" cy="420" rx="360" ry="150" fill="url(#pfr-lake)" />
+      <g fill="#f2b544" opacity="0.55">
+        <circle cx="700" cy="400" r="3" />
+        <circle cx="880" cy="450" r="2.4" />
+        <circle cx="820" cy="380" r="2" />
       </g>
-      <g transform="translate(240 200) rotate(-24)">
-        <path d="M-118 0 A118 25 0 0 1 118 0" fill="none" stroke="#dcd3ea" strokeWidth="9" opacity="0.4" />
-        <circle r="62" fill="url(#ps-giant)" transform="rotate(24)" />
-        <path d="M-60 -8 C-30 -4 30 -4 60 -8" stroke="#9590be" strokeWidth="7" fill="none" opacity="0.5" />
-        <path d="M-56 16 C-30 20 30 20 56 16" stroke="#9590be" strokeWidth="5" fill="none" opacity="0.4" />
-        <path d="M-118 0 A118 25 0 0 0 118 0" fill="none" stroke="#dcd3ea" strokeWidth="9" opacity="0.6" />
+      <path d="M560 900 L600 690 L1000 690 L1040 900Z" fill="#a8704a" />
+      <path d="M600 690 L1000 690 L990 720 L610 720Z" fill="#7a4a3a" />
+      <g transform="translate(800 760)">
+        <path d="M-60 0h120l-12-34H-28l-8-16h-32l-8 16h-8z" fill="#5b6670" />
+        <path d="M-50 0l-14 26M50 0l14 26" stroke="#3e474f" strokeWidth="7" strokeLinecap="round" />
+        <circle cx="-26" cy="-16" r="5" fill="#f4d29c" />
+        <circle cx="26" cy="-16" r="5" fill="#f4d29c" />
       </g>
-      <path d="M0 600 C200 540 360 580 560 545 C760 510 920 570 1120 540 C1320 510 1460 560 1600 540 L1600 900 L0 900Z" fill="#675a86" />
-      <path d="M0 650 C240 610 460 640 700 625 C940 610 1160 650 1400 630 C1500 622 1560 632 1600 630 L1600 900 L0 900Z" fill="#8a6f92" />
-      <path d="M0 720 C300 700 600 715 900 705 C1200 695 1400 712 1600 706 L1600 900 L0 900Z" fill="#d2ac94" />
-      <ellipse cx="1180" cy="760" rx="120" ry="20" fill="#b9998f" />
-      <g transform="translate(780 770)">
-        <ellipse cx="0" cy="18" rx="40" ry="7" fill="#8c7697" opacity="0.5" />
-        <rect x="-26" y="-14" width="52" height="24" rx="10" fill="#d8dbe2" />
-        <circle cx="-16" cy="12" r="7" fill="#5f6380" />
-        <circle cx="16" cy="12" r="7" fill="#5f6380" />
-        <circle cx="10" cy="-4" r="3" fill="#f0d29c" />
-      </g>
-      <rect width="1600" height="900" filter="url(#ps-paper)" />
+      <rect width="1600" height="900" fill="url(#pfr-fog)" />
+      <rect width="1600" height="900" filter="url(#pfr-paper)" />
     </svg>
   );
 }

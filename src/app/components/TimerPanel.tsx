@@ -6,6 +6,7 @@ import { simAt } from '../sim';
 import { sound } from '../../audio/sound';
 import { PauseIcon, PlayIcon, ResetIcon, StopIcon } from './Icons';
 import { TimeSetter } from './TimeSetter';
+import { RaceCards } from './RaceCards';
 
 function Digits({ text }: { text: string }) {
   return (
@@ -94,7 +95,12 @@ export function TimerPanel({ state, firstVisit }: { state: Persisted; firstVisit
           <div className="progress-fill" style={{ transform: `scaleX(${progress})` }} />
         </div>
       )}
-      {status === 'idle' && mode === 'countdown' && <TimeSetter valueMs={state.settings.countdownMs} showDays={state.settings.showDays} />}
+      {/* the front's people is chosen first (in place of the presets, until a war is on) */}
+      {status === 'idle' && theme === 'front' && !state.world.front?.cur ? (
+        <RaceCards state={state} />
+      ) : (
+        status === 'idle' && mode === 'countdown' && <TimeSetter valueMs={state.settings.countdownMs} showDays={state.settings.showDays} />
+      )}
       {status === 'idle' && mode === 'stopwatch' && <p className="hint">종료 시간을 정하지 않고, 마칠 때 종료를 눌러요.</p>}
       <div className="controls">
         {/* one persistent button whose role changes, so keyboard focus stays on it */}

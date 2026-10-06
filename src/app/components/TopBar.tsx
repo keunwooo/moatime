@@ -3,12 +3,13 @@ import type { MotionPref, Persisted, ThemeId, Mode } from '../../core/session';
 import type { EffectLevel } from '../../sim/config';
 import { engine } from '../runtime';
 import { sound } from '../../audio/sound';
-import { BellIcon, DotsIcon, LeafIcon, MoonIcon, MotionIcon, SoundIcon, SpiralIcon, SproutMark } from './Icons';
+import { BellIcon, DotsIcon, FlagIcon, LeafIcon, MotionIcon, SoundIcon, SpiralIcon, SproutMark } from './Icons';
 
 interface Props {
   state: Persisted;
   onNewWorld: () => void;
   onNewUniverse: () => void;
+  onNewWar: () => void;
 }
 
 function Segmented<T extends string>(props: {
@@ -54,7 +55,7 @@ function Segmented<T extends string>(props: {
   );
 }
 
-export function TopBar({ state, onNewWorld, onNewUniverse }: Props) {
+export function TopBar({ state, onNewWorld, onNewUniverse, onNewWar }: Props) {
   const s = state.settings;
   const inSession = !!state.session && state.session.status !== 'completed';
   const [menu, setMenu] = useState(false);
@@ -107,7 +108,7 @@ export function TopBar({ state, onNewWorld, onNewUniverse }: Props) {
           value={s.theme}
           options={[
             { value: 'forest', label: '숲', icon: <LeafIcon /> },
-            { value: 'space', label: '우주', icon: <MoonIcon /> },
+            { value: 'front', label: '전선', icon: <FlagIcon /> },
             { value: 'cosmos', label: '은하', icon: <SpiralIcon /> },
           ]}
           onChange={(theme) => void engine.updateSettings({ theme })}
@@ -178,6 +179,11 @@ export function TopBar({ state, onNewWorld, onNewUniverse }: Props) {
                 <button type="button" role="menuitemcheckbox" aria-checked={s.lowPower} className={s.lowPower ? 'on' : ''} onClick={() => void engine.updateSettings({ lowPower: !s.lowPower })}>
                   저전력 모드 <small>30fps · 저해상도</small>
                 </button>
+                {s.theme === 'front' && (
+                  <button type="button" role="menuitemcheckbox" aria-checked={s.minimap} className={s.minimap ? 'on' : ''} onClick={() => void engine.updateSettings({ minimap: !s.minimap })}>
+                    미니맵 <small>{s.minimap ? '켜짐 · 왼쪽 아래' : '꺼짐'}</small>
+                  </button>
+                )}
               </div>
               <div className="menu-group">
                 {s.theme === 'cosmos' && (
@@ -190,6 +196,18 @@ export function TopBar({ state, onNewWorld, onNewUniverse }: Props) {
                     }}
                   >
                     새 우주 시작… <small>은하만 빅뱅부터 다시</small>
+                  </button>
+                )}
+                {s.theme === 'front' && state.world.front?.cur && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      onNewWar();
+                    }}
+                  >
+                    새 전쟁 시작… <small>전선만 종족 선택부터 다시</small>
                   </button>
                 )}
                 <button

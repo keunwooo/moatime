@@ -11,12 +11,18 @@
 
 import {
   checkCompletion,
+  chooseRace,
   continueAfter,
   cosmosOrigin,
   createNewWorld,
   finish,
+  frontOrigin,
+  frontRace,
+  frontWar,
   newUniverse,
+  newWar,
   withCosmosOrigin,
+  withFrontOrigin,
   pause,
   rebaseClock,
   resetTimer,
@@ -27,8 +33,10 @@ import {
   statusOf,
   worldTime,
   type Persisted,
+  type RaceId,
   type Settings,
   type Status,
+  type ThemeId,
 } from './session';
 import { loadState, parseState, saveState, STATE_KEY, type StorageLike } from './persist';
 import { randomId } from './rng';
@@ -94,8 +102,9 @@ export class TimerEngine {
     } else if (loaded.source !== 'primary') {
       this.persist(this.stamp(this.state, now));
     }
-    // a cosmos chosen without its universe (an older tab wrote the state) gets one now
-    const withOrigin = withCosmosOrigin(this.state, now);
+    // a cosmos chosen without its universe (an older tab wrote the state) gets one now; likewise a
+    // front shown during a session without its war
+    const withOrigin = normalize(this.state, now);
     if (withOrigin !== this.state) {
       this.state = this.stamp(withOrigin, now);
       this.persist(this.state);
@@ -126,6 +135,22 @@ export class TimerEngine {
   /** World time at which the cosmos universe began (see session.cosmosOrigin). */
   cosmosOrigin(): number {
     return cosmosOrigin(this.state, this.nowFn());
+  }
+  /** World time at which the front's war began (see session.frontOrigin). */
+  frontOrigin(): number {
+    return frontOrigin(this.state, this.nowFn());
+  }
+  /** The people the front commands (the seed's suggestion while none has been chosen). */
+  frontRace(): RaceId {
+    return frontRace(this.state);
+  }
+  /** True once the front's war has begun (a people chosen). */
+  frontStarted(): boolean {
+    return frontWar(this.state) !== null;
+  }
+  /** Origin of a theme with its own clock (cosmos, front); 0 for the others. */
+  originOf(theme: ThemeId): number {
+    return theme === 'cosmos' ? this.cosmosOrigin() : theme === 'front' ? this.frontOrigin() : 0;
   }
   getState = (): Persisted => this.state;
   subscribe = (fn: () => void): (() => void) => {
@@ -188,6 +213,14 @@ export class TimerEngine {
   /** "새 우주 시작": only the cosmos theme starts over from its Big Bang. */
   newUniverse() {
     return this.commit((s, now) => newUniverse(s, now));
+  }
+  /** Picks the front's people (only while no war is on). */
+  chooseRace(race: RaceId) {
+    return this.commit((s, now) => chooseRace(s, now, race));
+  }
+  /** "새 전쟁 시작": the front's war goes on record and the choice of people opens again. */
+  newWar() {
+    return this.commit((s) => newWar(s));
   }
   updateSettings(patch: Partial<Settings>) {
     return this.commit((s) => {
@@ -268,6 +301,20 @@ export class TimerEngine {
       return { ...s, world: { ...s.world, cosmos: { origin, resets: s.world.cosmos?.resets ?? 0 } } };
     });
   }
+  /** Dev: sets the front war's time to A by moving its origin (world time is unchanged). */
+  devSetFrontAge(A: number) {
+    return this.commit((s, now) => {
+      const W = worldTime(s, now);
+      const race = frontRace(s);
+      const front = s.world.front ?? { resets: 0 };
+      if (W < A) {
+        const open = s.session && !s.session.banked ? sessionElapsed(s.session, now) : 0;
+        const bankedMs = Math.max(0, Math.floor(A - open));
+        return { ...s, world: { ...s.world, bankedMs, front: { ...front, cur: { origin: 0, race } } } };
+      }
+      return { ...s, world: { ...s.world, front: { ...front, cur: { origin: Math.max(0, Math.floor(W - Math.max(0, A))), race } } } };
+    });
+  }
   devAddWorldTime(deltaMs: number) {
     return this.commit((s) => ({ ...s, world: { ...s.world, bankedMs: Math.max(0, s.world.bankedMs + deltaMs) } }));
   }
@@ -304,7 +351,7 @@ export class TimerEngine {
       // Prefer whichever copy is newer; the in-memory copy wins when storage is unavailable.
       const base = fresh && fresh.rev >= this.state.rev ? fresh : this.state;
       // the cosmos gets its universe in the same write that first shows it
-      const next = withCosmosOrigin(fn(base, now), now);
+      const next = normalize(fn(base, now), now);
       if (next === base) {
         if (base !== this.state) this.adopt(base, now, false);
         return;
@@ -372,6 +419,11 @@ export class TimerEngine {
       this.leader = true;
     }
   }
+}
+
+/** Gives a shown cosmos its universe and a front shown during a session its war. */
+function normalize(s: Persisted, now: number): Persisted {
+  return withFrontOrigin(withCosmosOrigin(s, now), now);
 }
 
 export function createBrowserEngine(storage: StorageLike | null): TimerEngine {

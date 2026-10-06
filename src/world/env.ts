@@ -10,6 +10,7 @@ import { dayAt, type DayState } from './clock';
 import { seasonMix, type SeasonMix } from './season';
 import { currentPace, headlineAt } from './pace';
 import { cosmosHeadlineAt } from './cosmos';
+import { frontHeadlineAt } from './front';
 import type { WorldEvent } from './timeline';
 import { weatherAt, type WeatherState } from './weather';
 
@@ -26,10 +27,14 @@ export interface WorldEnv {
 /** The cosmos has no weather of this kind (its space weather lives in world/cosmos.ts). */
 const CALM: WeatherState = { id: 'CLEAR', next: 'CLEAR', k: 0, cloud: 0, rain: 0, snow: 0, fog: 0, wind: 0, dark: 0, wet: 0, snowCover: 0, flash: 0, flashX: 0 };
 
-/** `origin`: where the cosmos universe began (cosmos only; its events run on its age). */
+/** `origin`: where the cosmos universe or the front's war began (their events run on their own time). */
 export function worldEnv(theme: ThemeId, seed: number, W: number, origin = 0): WorldEnv {
   if (theme === 'cosmos') {
     return { theme, W, day: dayAt(theme, W), season: seasonMix(W), weather: CALM, event: cosmosHeadlineAt(seed, origin, W, currentPace()) };
+  }
+  if (theme === 'front') {
+    // the front's weather is its war tide's storm (world/front.ts), drawn by the scene
+    return { theme, W, day: dayAt(theme, W), season: seasonMix(W), weather: CALM, event: frontHeadlineAt(seed, origin, W, currentPace()) };
   }
   return {
     theme,

@@ -3,7 +3,7 @@ import { geometryFor, pathWorld, slotWorld, zoneOrigin, addressOf } from './worl
 import { rulesFor } from './rules';
 import { josa, statusLine, summarize } from './describe';
 import { flavorIndex } from '../scene/forest/palette';
-import { spaceFlavorOf } from '../scene/space/palette';
+import { spaceFlavorOf } from '../sim/spacePlan';
 import { legacyKind as facilityKind } from '../sim/v1/spacePlan';
 import { advanceForest, forestCtx, initForest } from '../sim/forest';
 import { advanceSpace, initSpace, spaceCtx } from '../sim/space';

@@ -25,6 +25,7 @@ export function App() {
   const reduced = state.settings.motion === 'reduce' || (state.settings.motion === 'system' && systemReduced);
   const [confirmNew, setConfirmNew] = useState(false);
   const [confirmUniverse, setConfirmUniverse] = useState(false);
+  const [confirmWar, setConfirmWar] = useState(false);
   const [announce, setAnnounce] = useState('');
   const firstVisit = state.world.bankedMs === 0 && !state.session;
 
@@ -122,7 +123,7 @@ export function App() {
       <h1 className="sr-only">모아 — 집중한 시간이 자라는 풍경 타이머</h1>
       <SceneCanvas theme={theme} reducedMotion={reduced} cameraLock={state.settings.cameraLock} lowPower={state.settings.lowPower} effects={state.settings.effects} />
       <div className="veil" aria-hidden="true" />
-      <TopBar state={state} onNewWorld={() => setConfirmNew(true)} onNewUniverse={() => setConfirmUniverse(true)} />
+      <TopBar state={state} onNewWorld={() => setConfirmNew(true)} onNewUniverse={() => setConfirmUniverse(true)} onNewWar={() => setConfirmWar(true)} />
       <main className="center" id="timer">
         {status === 'completed' ? <Summary state={state} /> : <TimerPanel state={state} firstVisit={firstVisit} />}
       </main>
@@ -157,7 +158,7 @@ export function App() {
           body={
             <>
               <p>
-                지금 풍경({formatDurationKo(state.world.bankedMs)} 동안 자란 {theme === 'forest' ? '숲' : theme === 'space' ? '기지' : '숲과 기지, 우주'})은 보관함에 기록되고, 처음부터 새로 시작해요.
+                지금 풍경({formatDurationKo(state.world.bankedMs)} 동안 자란 {theme === 'forest' ? '숲' : theme === 'front' ? '전선' : '숲과 전선, 우주'})은 보관함에 기록되고, 처음부터 새로 시작해요.
               </p>
               <p>진행 중인 세션이 있다면 지금까지의 시간을 남기고 끝나요. 타이머만 처음으로 돌리려면 ‘초기화’를 쓰세요.</p>
             </>
@@ -173,12 +174,26 @@ export function App() {
           body={
             <>
               <p>지금의 우주(우주의 나이 {formatDurationKo(Math.max(0, engine.worldTime() - engine.cosmosOrigin()))})는 사라지고, 빛 한 점에서 다시 시작해요.</p>
-              <p>숲과 우주(기지), 쌓인 집중 시간은 그대로예요. 지난 세션의 별자리 기록도 남아요.</p>
+              <p>숲과 전선, 쌓인 집중 시간은 그대로예요. 지난 세션의 별자리 기록도 남아요.</p>
             </>
           }
           confirm="새 우주 시작"
           onConfirm={() => void engine.newUniverse()}
           onClose={() => setConfirmUniverse(false)}
+        />
+      )}
+      {confirmWar && (
+        <ConfirmDialog
+          title="새 전쟁을 시작할까요?"
+          body={
+            <>
+              <p>지금의 전쟁(전쟁 시간 {formatDurationKo(Math.max(0, engine.worldTime() - engine.frontOrigin()))})은 기록으로 남고, 종족을 다시 고른 뒤 기지 하나에서 시작해요.</p>
+              <p>숲과 은하, 쌓인 집중 시간은 그대로예요. 지난 작전 기록도 남아요.</p>
+            </>
+          }
+          confirm="새 전쟁 시작"
+          onConfirm={() => void engine.newWar()}
+          onClose={() => setConfirmWar(false)}
         />
       )}
       {DevPanel && (

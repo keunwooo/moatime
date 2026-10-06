@@ -7,6 +7,7 @@ import { simAt, simRunner } from '../sim';
 import { hostRef as activeHostRef } from '../hostRef';
 import { Poster } from './Poster';
 import { devCallSight } from '../../world/cosmos';
+import { devCallBattle } from '../../world/front';
 import { worldEnv } from '../../world/env';
 
 interface Props {
@@ -67,8 +68,17 @@ export function SceneCanvas({ theme, reducedMotion, cameraLock, lowPower, effect
       const sim = () => simRunner(engine.getState().settings.theme);
       // a cosmos session sight that began `agoMs` ago (inspection while idle)
       const sight = (agoMs = 25_000, kind?: string) => devCallSight(engine.worldTime() - agoMs, engine.cosmosOrigin(), engine.getState().world.seed, kind);
-      const headline = () => worldEnv(engine.getState().settings.theme, engine.getState().world.seed, engine.worldTime(), engine.cosmosOrigin()).event;
-      (window as unknown as { __moa: unknown }).__moa = { host, engine, zoom, at, sim, sight, headline };
+      const headline = () => worldEnv(engine.getState().settings.theme, engine.getState().world.seed, engine.worldTime(), engine.originOf(engine.getState().settings.theme)).event;
+      // the front: a battle that began `agoMs` ago, and setting the war's time directly
+      const battle = (agoMs = 25_000, opts: { grade?: number; away?: boolean } = {}) => devCallBattle(engine.worldTime() - agoMs, engine.frontOrigin(), engine.getState().world.seed, opts);
+      const war = async (A: number) => {
+        await engine.devSetFrontAge(A);
+        host.snap();
+        host.devRenderNow();
+        host.devRenderNow();
+        return host.devInfo();
+      };
+      (window as unknown as { __moa: unknown }).__moa = { host, engine, zoom, at, sim, sight, headline, battle, war };
     }
     void host.init(theme);
     const off = engine.onEvent((e) => {

@@ -19,7 +19,7 @@ import { hash32 } from '../core/rng';
 import { dayAt } from './clock';
 import { EVENT_DEFS } from './events';
 import { BLOCK_MS, eventAt, eventOfBlock, type EventDef, type WorldEvent } from './timeline';
-import type { ThemeId } from '../core/session';
+import type { SimTheme } from '../core/session';
 
 export interface PaceSeg {
   /** World time when the session started. */
@@ -279,7 +279,7 @@ export function currentPace(): readonly PaceSeg[] {
  * The headline event on view at W: the planet's own timeline, or a sight added for a quiet
  * session. The simulation only ever looks at the timeline (`eventAt`).
  */
-export function headlineAt(theme: ThemeId, seed: number, W: number, segs: readonly PaceSeg[] = current): WorldEvent | null {
+export function headlineAt(theme: SimTheme, seed: number, W: number, segs: readonly PaceSeg[] = current): WorldEvent | null {
   const e = eventAt(EVENT_DEFS, theme, seed, W);
   if (e || theme !== 'space' || segs.length === 0) return e;
   for (const f of pacedSights(seed, segs)) {

@@ -16,13 +16,14 @@ import { SIM_VERSION } from './config';
 import { advanceForest, cloneForest, forestCtx, initForest, type ForestCtx, type ForestSim } from './forest';
 import { advanceSpace, cloneSpace, initSpace, spaceCtx, type SpaceCtx, type SpaceSim } from './space';
 import { advanceCosmos, cloneCosmos, COSMOS_SIM_VERSION, initCosmos, type CosmosSim } from './cosmos';
+import { advanceFront, cloneFront, FRONT_SIM_VERSION, initFront, type FrontSim } from './front';
 import type { SimBase } from './types';
-import type { ThemeId } from '../core/session';
+import type { RaceId, SimTheme } from '../core/session';
 
-export type SimState<T extends ThemeId> = T extends 'forest' ? ForestSim : T extends 'space' ? SpaceSim : CosmosSim;
+export type SimState<T extends SimTheme> = T extends 'forest' ? ForestSim : T extends 'space' ? SpaceSim : T extends 'front' ? FrontSim : CosmosSim;
 
-/** Rule version of a theme's simulation (the cosmos keeps its own). */
-export const simVersionOf = (theme: ThemeId) => (theme === 'cosmos' ? COSMOS_SIM_VERSION : SIM_VERSION);
+/** Rule version of a theme's simulation (the cosmos and the front keep their own). */
+export const simVersionOf = (theme: SimTheme) => (theme === 'cosmos' ? COSMOS_SIM_VERSION : theme === 'front' ? FRONT_SIM_VERSION : SIM_VERSION);
 
 export interface SimWorld {
   id: string;
@@ -30,6 +31,8 @@ export interface SimWorld {
   base: SimBase;
   /** Planned raid starts (space), sorted. */
   raids?: readonly number[];
+  /** The people the front commands. */
+  race?: RaceId;
 }
 
 /** Which raids a state at W has seen (a stored checkpoint is only valid for the same ones). */
@@ -47,7 +50,7 @@ function raidKey(raids: readonly number[], W: number): string {
 export interface StoredCheckpoint {
   worldId: string;
   simVersion: number;
-  theme: ThemeId;
+  theme: SimTheme;
   baseW: number;
   W: number;
   state: unknown;
@@ -65,7 +68,7 @@ interface Impl<S> {
   clone(s: S): S;
 }
 
-export class SimRunner<T extends ThemeId = ThemeId> {
+export class SimRunner<T extends SimTheme = SimTheme> {
   readonly theme: T;
   readonly world: SimWorld;
   private impl: Impl<SimState<T>>;
@@ -97,14 +100,23 @@ export class SimRunner<T extends ThemeId = ThemeId> {
         advance: (s, W) => advanceCosmos(s as CosmosSim, W - origin),
         clone: (s) => cloneCosmos(s as CosmosSim),
       } as Impl<SimState<T>>;
+    } else if (theme === 'front') {
+      // the war's time is the world time since its origin (the base)
+      const origin = world.base.W;
+      const race = world.race ?? 0;
+      this.impl = {
+        init: () => initFront(world.seed, race, world.base),
+        advance: (s: unknown, W: number) => advanceFront(s as FrontSim, W - origin),
+        clone: (s: unknown) => cloneFront(s as FrontSim),
+      } as unknown as Impl<SimState<T>>;
     } else {
       const ctx: SpaceCtx = spaceCtx(world.seed, world.raids ?? []);
       this.sctx = ctx;
       this.impl = {
         init: () => initSpace(world.seed, world.base),
-        advance: (s, W) => advanceSpace(s as SpaceSim, ctx, W),
-        clone: (s) => cloneSpace(s as SpaceSim),
-      } as Impl<SimState<T>>;
+        advance: (s: unknown, W: number) => advanceSpace(s as SpaceSim, ctx, W),
+        clone: (s: unknown) => cloneSpace(s as SpaceSim),
+      } as unknown as Impl<SimState<T>>;
     }
     const base = this.impl.init();
     this.cps.push({ W: world.base.W, s: this.impl.clone(base) });
@@ -134,7 +146,9 @@ export class SimRunner<T extends ThemeId = ThemeId> {
         ? Array.isArray((cp.state as { rovers?: unknown }).rovers) && cp.raidKey === raidKey(this.sctx!.raids, cp.W)
         : this.theme === 'cosmos'
           ? (cp.state as { seed?: unknown }).seed === this.world.seed && Array.isArray((cp.state as { sn?: unknown }).sn)
-          : typeof (cp.state as { keeper?: unknown }).keeper === 'object')
+          : this.theme === 'front'
+            ? (cp.state as { seed?: unknown }).seed === this.world.seed && (cp.state as { race?: unknown }).race === (this.world.race ?? 0)
+            : typeof (cp.state as { keeper?: unknown }).keeper === 'object')
     );
   }
 

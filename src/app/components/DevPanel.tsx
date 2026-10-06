@@ -19,9 +19,10 @@ import { EVENT_DEFS } from '../../world/events';
 import { eventsIn } from '../../world/timeline';
 import { WEATHER_NAMES } from '../../world/weather';
 import { WORLD } from '../../sim/config';
-import { spaceStage, type SpaceSim } from '../../sim/space';
-import { nextRaidAt, pacedRaids } from '../../world/pace';
 import type { Worker } from '../../sim/types';
+import { frontAt, milestones as frontMilestones, nextCapture, OPEN, FRONT_STAGE_NAMES, type FrontSim } from '../../sim/front';
+import { BIOME_NAME, RACE_NAME, TIDE_NAME } from '../../sim/frontPlan';
+import { devCallBattle, frontBattles, GRADE_NAME } from '../../world/front';
 import { RULES_UNITS_PER_CLUSTER as UPC, RULES_UNITS_PER_ZONE as UPZ } from '../../sim/units';
 import { engine, useEngine } from '../runtime';
 import { saveSimCheckpoints, simRunner } from '../sim';
@@ -77,18 +78,24 @@ export default function DevPanel() {
   const info = hostRef.current?.devInfo();
   const setW = (w: number) => void engine.devSetWorldTime(Math.max(0, w));
   const season = seasonMix(W);
-  const env = worldEnv(theme, state.world.seed, W, engine.cosmosOrigin());
+  const env = worldEnv(theme, state.world.seed, W, engine.originOf(theme));
   const upcoming = eventsIn(EVENT_DEFS, theme, state.world.seed, W, W + 24 * 3600e3)[0];
   const slots = hostRef.current?.devDirector.active() ?? [];
   const q = SEASON.yearMs / 4;
   const nextSeason = (Math.floor(W / q) + 1) * q;
-  const workers: Worker[] =
-    theme === 'space' ? (sim as SpaceSim).rovers : theme === 'forest' ? [(sim as ForestSim).keeper, ...((sim as ForestSim).squirrel ? [(sim as ForestSim).squirrel!] : [])] : [];
+  const workers: Worker[] = theme === 'forest' ? [(sim as ForestSim).keeper, ...((sim as ForestSim).squirrel ? [(sim as ForestSim).squirrel!] : [])] : [];
   const cosmos = theme === 'cosmos' ? (sim as CosmosSim) : null;
-  const origin = engine.cosmosOrigin();
+  const front = theme === 'front' ? (sim as FrontSim) : null;
+  const origin = engine.originOf(theme);
   const A = Math.max(0, W - origin);
   const nextMs = cosmos ? milestones(cosmos.seed).find((m) => m.A > A) : undefined;
   const setA = (a: number) => void engine.devSetCosmosAge(Math.max(0, a));
+  const setFA = (a: number) => void engine.devSetFrontAge(Math.max(0, a));
+  const fv = front ? frontAt(front.seed, front.race, A) : null;
+  const fNextMs = front ? frontMilestones(front.seed, A + 12 * 3600e3).find((m) => m.A > A) : undefined;
+  const fNextCap = front ? nextCapture(front.seed, A) : null;
+  const fNextBattle = front ? frontBattles(front.seed, origin, engine.getState().world.pace ?? []).find((b) => b.t0 > W) : undefined;
+  const mmss = (sec: number) => (sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : `0:${String(sec).padStart(2, '0')}`);
   let stored = '-';
   try {
     const t = localStorage.getItem(`${SIM_KEY_PREFIX}${theme}`);
@@ -138,12 +145,28 @@ export default function DevPanel() {
                 })()}
               </dd>
             </>
+          ) : front && fv ? (
+            <>
+              <dt>전선</dt>
+              <dd>
+                A {formatDurationKo(A, { seconds: true })} ({Math.round(A / 1000)}s) · 원점 {engine.frontStarted() ? `${Math.round(origin / 1000)}s` : '선택 전'} · {RACE_NAME[front.race]} · {fv.stage}단계 {FRONT_STAGE_NAMES[fv.stage]} · 티어 {fv.tier} · 전황 {TIDE_NAME[fv.tide]}
+              </dd>
+              <dt>행성</dt>
+              <dd>
+                {BIOME_NAME[fv.planet.biome]} #{fv.planet.idx} · 점령률 {Math.round(fv.share * 100)}% · 기지 {fv.bases.filter((b) => !b.lost).length} · 병력 {fv.armyN} · 함선 {fv.ships.s1}/{fv.ships.s2}/{fv.ships.s3} · 개발 행성 {fv.held}
+                {fv.orbit ? ` · 궤도전 ${BIOME_NAME[fv.orbit.biome]}` : ''}
+              </dd>
+              <dt>전선 사건</dt>
+              <dd>
+                헤드라인 {env.event ? `${env.event.kind} ${Math.round((env.event.t1 - W) / 1000)}s 남음` : '-'} · 다음 이정표 {fNextMs ? `${fNextMs.id} ${formatDurationKo(fNextMs.A - A, { seconds: true })} 뒤` : '-'} · 다음 점령전 {fNextCap ? `${fNextCap.kind} ${formatDurationKo(fNextCap.t - fNextCap.dur - A)} 뒤` : '-'} · 다음 전투{' '}
+                {fNextBattle ? `${fNextBattle.kind} ${GRADE_NAME[fNextBattle.grade]}${fNextBattle.away ? ` · 다른 행성 #${fNextBattle.planet}` : ''} ${formatDurationKo(fNextBattle.t0 - W)} 뒤` : '-'}
+              </dd>
+            </>
           ) : (
             <>
               <dt>구역</dt>
               <dd>
-                완성 {sim.done} · 구역 {Math.floor(sim.done / UPZ)} · 군락 {(sim as ForestSim | SpaceSim).cluster} ({sim.done - (sim as ForestSim | SpaceSim).cluster * UPC}/4)
-                {theme === 'forest' ? ` · 숲 ${forestStage(sim as ForestSim, W)}단계` : ` · 콜로니 ${spaceStage(sim as SpaceSim)}단계`}
+                완성 {sim.done} · 구역 {Math.floor(sim.done / UPZ)} · 군락 {(sim as ForestSim).cluster} ({sim.done - (sim as ForestSim).cluster * UPC}/4) · 숲 {forestStage(sim as ForestSim, W)}단계
               </dd>
             </>
           )}
@@ -160,21 +183,6 @@ export default function DevPanel() {
             {WEATHER_NAMES[env.weather.id]} (구름 {env.weather.cloud.toFixed(2)} · 비 {env.weather.rain.toFixed(2)} · 눈 {env.weather.snow.toFixed(2)} · 안개 {env.weather.fog.toFixed(2)}) · 사건{' '}
             {env.event ? `${env.event.kind} ${Math.round((env.event.t1 - W) / 1000)}s 남음` : '-'} · 다음 {upcoming ? `${upcoming.kind} ${formatDurationKo(upcoming.t0 - W)} 뒤` : '-'} · 슬롯 {slots.map((x) => `${x.id}(${x.channel})`).join(', ') || '-'}
           </dd>
-          {theme === 'space' && (
-            <>
-              <dt>습격</dt>
-              <dd>
-                {(() => {
-                  const sp = sim as SpaceSim;
-                  const r = sp.raid;
-                  const planned = nextRaidAt(pacedRaids(sp.seed, engine.getState().world.pace ?? []), W);
-                  const next = Number.isFinite(planned) ? `다음 ${formatDurationKo(Math.max(0, planned - W))} 뒤` : '이번 세션에 계획 없음';
-                  const now = r ? ` · 지금 ${r.faction} ${r.raiders.length} (전선 탱크 ${r.tanks} · 경비대 ${r.inf} · 포탑 ${r.turrets.length}) 피해 ${r.hits.length} 무력화 ${r.tankKo.length} 보호막 ${r.infShield.length}${r.wreck >= 0 ? ` 잔해 u${r.wreck}` : ''}` : '';
-                  return `${sp.raids.n}번 · ${next}${now} · 주둔군 ${sp.army.inf}/${sp.army.tanks} (치료 ${sp.army.out}) · 수리 대기 ${sp.damage.length}${sp.wreck ? ` · 재건 u${sp.wreck.u} ${sp.wreck.cleared ? `${sp.wreck.stage}/3` : '잔해'}` : ''} · 정비 드론 ${sp.crew.length} (${sp.crew.map((w) => w.job).join(', ')})`;
-                })()}
-              </dd>
-            </>
-          )}
           <dt>재고</dt>
           <dd>
             {detailRows(theme, sim, W)
@@ -183,7 +191,7 @@ export default function DevPanel() {
           </dd>
           {workers.map((w, i) => (
             <div key={i} className="dev-worker">
-              <dt>{theme === 'space' ? `드론 ${i + 1}` : i === 0 ? '숲지기' : '다람쥐'}</dt>
+              <dt>{i === 0 ? '숲지기' : '다람쥐'}</dt>
               <dd>{workerLine(w, W)}</dd>
             </div>
           ))}
@@ -235,11 +243,6 @@ export default function DevPanel() {
               다음 사건 −10초
             </button>
           )}
-          {theme === 'space' && !(sim as SpaceSim).raid && (
-            <button type="button" onClick={() => void engine.devCallRaid(W + 10_000)}>
-              습격 부르기(10초 뒤)
-            </button>
-          )}
           <button type="button" onClick={() => setW(0)}>
             W=0
           </button>
@@ -268,6 +271,66 @@ export default function DevPanel() {
               새 우주 시작
             </button>
           </div>
+        )}
+        {front && (
+          <>
+            <div className="row">
+              <span>오프닝</span>
+              {[0, 40, 100, 160, 230, 360, 510, 570, 720, 1020, 1320].map((sec) => (
+                <button key={sec} type="button" onClick={() => setFA(sec * 1000)}>
+                  {mmss(sec)}
+                </button>
+              ))}
+            </div>
+            <div className="row">
+              <span>사다리</span>
+              {[
+                ['25분', 25],
+                ['50분', 50],
+                ['1시간', 60],
+                ['1:30', 90],
+                ['2시간', 120],
+                ['3시간', 180],
+                ['5시간', 300],
+                ['10시간', 600],
+                ['15시간', 900],
+              ].map(([label, m]) => (
+                <button key={label} type="button" onClick={() => setFA((m as number) * 60_000)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="row">
+              <span>전선</span>
+              {fNextMs && (
+                <button type="button" onClick={() => setFA(fNextMs.A - 20_000)}>
+                  다음 이정표 −20초
+                </button>
+              )}
+              {fNextCap && (
+                <button type="button" onClick={() => setFA(fNextCap.t - fNextCap.dur - 20_000)}>
+                  다음 점령전 −20초
+                </button>
+              )}
+              {fv && (
+                <button type="button" onClick={() => setFA(fv.planet.decisiveAt - 20_000)}>
+                  결전 직전
+                </button>
+              )}
+              {[1, 2, 3, 4, 5, 6, 7].map((g) => (
+                <button key={g} type="button" title={GRADE_NAME[g]} onClick={() => devCallBattle(W + 10_000, origin, front.seed, { grade: g })}>
+                  전투 {g}
+                </button>
+              ))}
+              <button type="button" onClick={() => devCallBattle(W + 10_000, origin, front.seed, { away: true })}>
+                무대 전환 부르기
+              </button>
+              <button type="button" onClick={() => void engine.newWar()}>
+                새 전쟁 시작
+              </button>
+              <span className="note">오프닝 끝 {mmss(OPEN.end / 1000)}</span>
+            </div>
+          </>
         )}
         <div className="row">
           <span>빠른 재생</span>
