@@ -214,9 +214,11 @@ export const LIFE = {
   lifeSpreadEnd: 7 * H,
   lights: 8 * H,
   lightsFull: 20 * H,
-  rotationMs: 12 * MIN,
+  /** Turning fast enough to watch: clouds and continents cross the disc in about a minute. */
+  rotationMs: 2 * MIN,
+  /** Seasons keep the forest's pace (the visible orbit below is quicker). */
   yearMs: 72 * MIN,
-  moonMonthMs: 18 * MIN,
+  moonMonthMs: 90 * S,
   rings: 90 * MIN,
 };
 
@@ -250,8 +252,11 @@ export function ocean60At(seed: number): number {
   return cometTimes(seed)[Math.min(need, LIFE.comets) - 1];
 }
 
-/** Orbital periods of the home planets (inner, life, gas giant): whole multiples of each other. */
-export const ORBIT_MS = [8 * MIN, 72 * MIN, 288 * MIN] as const;
+/**
+ * Orbital periods of the home planets (inner, life, gas giant), quick enough that their motion shows
+ * (a few px a second). Each divides ALIGN_EVERY, so all three still meet every 4.8 hours.
+ */
+export const ORBIT_MS = [90 * S, 6 * MIN, 16 * MIN] as const;
 /** The home planets line up at this A and every 288 minutes after. */
 export const ALIGN_AT = 220 * MIN;
 export const ALIGN_EVERY = 288 * MIN;

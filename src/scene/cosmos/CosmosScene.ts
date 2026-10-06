@@ -71,7 +71,7 @@ export class CosmosScene implements ThemeScene {
   private aspect: AspectClass | null = null;
   private realT = 0;
   private celebrate0 = -1;
-  private visit: { id: string; until: number } | null = null;
+  private visit: { id: string; from: number; until: number } | null = null;
   private lastA = -1;
 
   async build(_renderer: Renderer, world: WorldSpec, lowPower: boolean) {
@@ -168,7 +168,7 @@ export class CosmosScene implements ThemeScene {
   /** Where the camera wants to be (lean toward the work, step back for reveals, visit the planet). */
   private target(f: CosmosFrame): CamTarget {
     const { w, h, A, seed } = f;
-    const rest: CamTarget = { fx: w / 2, fy: h / 2, ox: 0, oy: 0, z: 1, tau: 4 };
+    const rest: CamTarget = { key: 'rest', fx: w / 2, fy: h / 2, ox: 0, oy: 0, z: 1, tau: 4 };
     if (!f.motion || f.cameraLock) {
       this.visit = null;
       return rest;
@@ -177,7 +177,7 @@ export class CosmosScene implements ThemeScene {
     if (f.jumped) this.visit = null;
     if (f.live && this.lastA >= 0) {
       for (const m of milestones(seed)) {
-        if (m.visit && this.lastA < m.A && A >= m.A) this.visit = { id: m.id, until: m.A + Math.max(m.dur, 80_000) };
+        if (m.visit && this.lastA < m.A && A >= m.A) this.visit = { id: m.id, from: m.A, until: m.A + Math.max(m.dur, 80_000) };
       }
     }
     if (this.visit && A >= this.visit.until) this.visit = null;
@@ -186,13 +186,16 @@ export class CosmosScene implements ThemeScene {
       const z = Math.max(1, Math.min(3.2, (0.22 * Math.min(w, h)) / (2 * lp.r)));
       const tx = lp.x * 0.7 + w * 0.15;
       const ty = h * (f.aspect === 'wide' ? 0.76 : 0.78);
-      return { fx: lp.x, fy: lp.y, ox: lp.x - tx, oy: lp.y - ty, z, tau: 6 };
+      // the focus rides on the planet; the approach is slow, then the view keeps up along its orbit
+      const tau = A - this.visit.from < 24_000 ? 6 : 1.2;
+      return { key: `visit:${this.visit.id}`, fx: lp.x, fy: lp.y, ox: lp.x - tx, oy: lp.y - ty, z, tau, tauF: 0.5 };
     }
     // sights on the life planet are small: the view leans in toward it while they last
     const planetSight = f.event && ['aurora', 'moonShadow', 'nightMeteors', 'orbitLight'].includes(f.event.kind);
     if (planetSight && lp.r > 0) {
       const z = Math.max(1, Math.min(1.8, (0.12 * Math.min(w, h)) / (2 * lp.r)));
-      return { fx: lp.x, fy: lp.y, ox: (lp.x - w / 2) * 0.25, oy: (lp.y - h * 0.72) * 0.5, z, tau: 6 };
+      const tau = f.W - f.event!.t0 < 20_000 ? 5 : 1.5;
+      return { key: 'planet-sight', fx: lp.x, fy: lp.y, ox: (lp.x - w / 2) * 0.25, oy: (lp.y - h * 0.72) * 0.5, z, tau, tauF: 0.5 };
     }
     // a finished cluster (20 s) or zone (30 s) is shown whole
     const cur = unitAt(seed, A);
@@ -200,7 +203,7 @@ export class CosmosScene implements ThemeScene {
       const done = cur.k - 1;
       const ended = unitEnd(seed, done);
       const zone = (done + 1) % PER_ZONE === 0;
-      if ((done + 1) % PER_CLUSTER === 0 && A - ended < (zone ? 30_000 : 20_000)) return { ...rest, z: zone ? 0.88 : 0.93, tau: 4 };
+      if ((done + 1) % PER_CLUSTER === 0 && A - ended < (zone ? 30_000 : 20_000)) return { ...rest, key: 'reveal', z: zone ? 0.88 : 0.93, tau: 4 };
     }
     // lean a little toward where the universe is at work
     let site = f.L.home;
@@ -210,7 +213,7 @@ export class CosmosScene implements ThemeScene {
     else if (A < CHRON.end) site = f.L.home;
     else if (cur) site = systemPos(f.L, seed, cur.k, Math.floor(cur.k / PER_ZONE));
     const p = px(f, site);
-    return { fx: p.x, fy: p.y, ox: (p.x - w / 2) * 0.1, oy: (p.y - h / 2) * 0.06, z: site === f.L.home ? 1.04 : 1.07, tau: 5 };
+    return { key: 'lean', fx: p.x, fy: p.y, ox: (p.x - w / 2) * 0.1, oy: (p.y - h / 2) * 0.06, z: site === f.L.home ? 1.04 : 1.07, tau: 5 };
   }
 
   celebrate() {

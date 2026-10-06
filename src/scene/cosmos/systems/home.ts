@@ -413,7 +413,7 @@ export class HomeSystem {
     vis(this.diskBands, 0.8 * sm(1250, 1340, s) * (1 - sm(1380, 1470, s)));
     const beltR = L.orbits.belt * W;
     this.beltBack.width = this.beltBack.height = beltR * 2.06;
-    this.beltBack.rotation = (A / 1000) * 0.004;
+    this.beltBack.rotation = (A / 1000) * 0.007;
     vis(this.beltBack, 0.5 * sm(1430, 1470, s));
     this.belt.visible = false;
 

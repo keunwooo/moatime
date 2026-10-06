@@ -154,7 +154,7 @@ export class StarSystems {
         const dur = unitEnd(f.seed, k) / 1000 - t0;
         const at = t0 + dur * (UNIT.planets + ((UNIT.planetsEnd - UNIT.planets) * (j + 0.5)) / n);
         const grow = sm(at - 10, at, s);
-        const P = 120 + 90 * j;
+        const P = 40 + 30 * j;
         const ang = hash01(k, j, 9) * 6.28 + ((f.A / 1000) * Math.PI * 2) / P;
         const rad = base * (2.4 + 1.5 * j) * depth;
         p.position.set(Math.sin(ang) * rad, Math.cos(ang) * rad * 0.34);
