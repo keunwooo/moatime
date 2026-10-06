@@ -44,6 +44,25 @@ npm run preview
 
 > Windows에서 경로에 한글이 있으면 Vite의 파일 감시가 일부 변경을 놓쳐서, `vite.config.ts`에서 폴링 감시를 켜 두었습니다.
 
+## GitHub Pages 배포 (개발 모드 빌드)
+
+`main`에 푸시하면 `.github/workflows/pages.yml`이 테스트를 돌리고, **개발 모드로 빌드**해 `https://<계정>.github.io/<저장소>/`에 배포합니다. DEV 검수 도구, `?store=`, 시간 이동이 그대로 들어 있습니다.
+
+1. 처음 한 번만: 저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 바꿉니다.
+2. `main`에 푸시하거나, Actions 탭에서 "Deploy to GitHub Pages (dev build)"를 직접 실행합니다.
+
+로컬에서 같은 빌드를 확인하려면(Git Bash 기준, `MSYS_NO_PATHCONV=1`은 `/moatime/`가 윈도우 경로로 바뀌지 않게 막습니다):
+
+```bash
+MSYS_NO_PATHCONV=1 NODE_ENV=development BASE_PATH=/moatime/ npx vite build --outDir dist-pages
+```
+
+```bash
+npx vite preview --outDir dist-pages --base /moatime/ --port 5181
+```
+
+운영용(DEV 도구 없음)으로 바꾸려면 워크플로에서 `NODE_ENV: development` 줄을 지우면 됩니다.
+
 ## Cloudflare Pages 배포
 
 **Git 연동(권장)**
