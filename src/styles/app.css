@@ -903,17 +903,29 @@ input {
   color: #1d2a26;
 }
 .dev {
+  display: flex;
+  flex-direction: column;
   width: 380px;
   max-width: calc(100vw - 24px);
+  /* never taller than the window: the header stays on screen, the body scrolls */
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
   padding: 10px;
   border-radius: 12px;
   background: rgba(250, 248, 240, 0.94);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 .dev header {
+  flex: none;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 6px;
+}
+.dev-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .dev dl {
   display: grid;
