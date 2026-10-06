@@ -122,6 +122,29 @@
   color-scheme: dark;
 }
 
+[data-theme='cosmos'] {
+  --ink: #eef0fa;
+  --ink-soft: rgba(238, 240, 250, 0.76);
+  --ink-faint: rgba(238, 240, 250, 0.46);
+  --paper: #120f2a;
+  --paper-2: #1c1838;
+  --accent: #e8c27a;
+  --accent-ink: #120f2a;
+  --accent-2: #6cc9c1;
+  --chip-bg: rgba(18, 15, 42, 0.46);
+  --chip-bg-hover: rgba(30, 25, 64, 0.7);
+  --chip-border: rgba(238, 240, 250, 0.16);
+  --veil: rgba(14, 11, 34, 0.58);
+  --veil-2: rgba(14, 11, 34, 0.24);
+  --card-bg: rgba(22, 18, 48, 0.86);
+  --glow: 0 0 28px rgba(10, 8, 28, 0.9);
+  --focus: #e8c27a;
+  --below-bg: #110e26;
+  --below-ink: #e9e9f2;
+  --below-card: #1d1938;
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -444,7 +467,8 @@ input {
 .menu button.danger {
   color: #a5584a;
 }
-[data-theme='space'] .menu button.danger {
+[data-theme='space'] .menu button.danger,
+[data-theme='cosmos'] .menu button.danger {
   color: #f0b39c;
 }
 
@@ -691,7 +715,8 @@ input {
 .field-msg[role='alert'] {
   color: #b5624d;
 }
-[data-theme='space'] .field-msg[role='alert'] {
+[data-theme='space'] .field-msg[role='alert'],
+[data-theme='cosmos'] .field-msg[role='alert'] {
   color: #f2b49d;
 }
 
@@ -1037,8 +1062,9 @@ input {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
-[data-theme='forest'] .compare-row[data-theme-row='space'],
-[data-theme='space'] .compare-row[data-theme-row='forest'] {
+[data-theme='forest'] .compare-row:not([data-theme-row='forest']),
+[data-theme='space'] .compare-row:not([data-theme-row='space']),
+[data-theme='cosmos'] .compare-row:not([data-theme-row='cosmos']) {
   display: none;
 }
 .compare-row div {

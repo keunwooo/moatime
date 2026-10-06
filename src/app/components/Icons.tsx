@@ -26,6 +26,14 @@ export const MoonIcon = () => (
   </svg>
 );
 
+export const SpiralIcon = () => (
+  <svg {...base}>
+    <path d="M12 12.2c0-.9.8-1.5 1.6-1.2 1.2.4 1.4 2 .6 3-1.1 1.4-3.4 1.3-4.5-.1-1.5-1.8-.9-4.6 1-5.8 2.4-1.5 5.7-.6 7 1.9 1.6 3-.1 6.8-3.3 7.9" />
+    <circle cx="6.2" cy="6.4" r="0.6" fill="currentColor" />
+    <circle cx="18.6" cy="17.8" r="0.5" fill="currentColor" />
+  </svg>
+);
+
 export const SoundIcon = ({ on }: { on: boolean }) => (
   <svg {...base}>
     <path d="M4 9.5h3l4-3.5v12l-4-3.5H4z" />

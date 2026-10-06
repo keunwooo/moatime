@@ -3,11 +3,12 @@ import type { MotionPref, Persisted, ThemeId, Mode } from '../../core/session';
 import type { EffectLevel } from '../../sim/config';
 import { engine } from '../runtime';
 import { sound } from '../../audio/sound';
-import { BellIcon, DotsIcon, LeafIcon, MoonIcon, MotionIcon, SoundIcon, SproutMark } from './Icons';
+import { BellIcon, DotsIcon, LeafIcon, MoonIcon, MotionIcon, SoundIcon, SpiralIcon, SproutMark } from './Icons';
 
 interface Props {
   state: Persisted;
   onNewWorld: () => void;
+  onNewUniverse: () => void;
 }
 
 function Segmented<T extends string>(props: {
@@ -53,7 +54,7 @@ function Segmented<T extends string>(props: {
   );
 }
 
-export function TopBar({ state, onNewWorld }: Props) {
+export function TopBar({ state, onNewWorld, onNewUniverse }: Props) {
   const s = state.settings;
   const inSession = !!state.session && state.session.status !== 'completed';
   const [menu, setMenu] = useState(false);
@@ -107,6 +108,7 @@ export function TopBar({ state, onNewWorld }: Props) {
           options={[
             { value: 'forest', label: '숲', icon: <LeafIcon /> },
             { value: 'space', label: '우주', icon: <MoonIcon /> },
+            { value: 'cosmos', label: '은하', icon: <SpiralIcon /> },
           ]}
           onChange={(theme) => void engine.updateSettings({ theme })}
         />
@@ -178,6 +180,18 @@ export function TopBar({ state, onNewWorld }: Props) {
                 </button>
               </div>
               <div className="menu-group">
+                {s.theme === 'cosmos' && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      onNewUniverse();
+                    }}
+                  >
+                    새 우주 시작… <small>은하만 빅뱅부터 다시</small>
+                  </button>
+                )}
                 <button
                   type="button"
                   role="menuitem"

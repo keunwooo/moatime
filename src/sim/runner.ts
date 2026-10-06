@@ -15,10 +15,14 @@
 import { SIM_VERSION } from './config';
 import { advanceForest, cloneForest, forestCtx, initForest, type ForestCtx, type ForestSim } from './forest';
 import { advanceSpace, cloneSpace, initSpace, spaceCtx, type SpaceCtx, type SpaceSim } from './space';
+import { advanceCosmos, cloneCosmos, COSMOS_SIM_VERSION, initCosmos, type CosmosSim } from './cosmos';
 import type { SimBase } from './types';
 import type { ThemeId } from '../core/session';
 
-export type SimState<T extends ThemeId> = T extends 'forest' ? ForestSim : SpaceSim;
+export type SimState<T extends ThemeId> = T extends 'forest' ? ForestSim : T extends 'space' ? SpaceSim : CosmosSim;
+
+/** Rule version of a theme's simulation (the cosmos keeps its own). */
+export const simVersionOf = (theme: ThemeId) => (theme === 'cosmos' ? COSMOS_SIM_VERSION : SIM_VERSION);
 
 export interface SimWorld {
   id: string;
@@ -85,6 +89,14 @@ export class SimRunner<T extends ThemeId = ThemeId> {
         advance: (s, W) => advanceForest(s as ForestSim, ctx, W),
         clone: (s) => cloneForest(s as ForestSim),
       } as Impl<SimState<T>>;
+    } else if (theme === 'cosmos') {
+      // the universe's age is the world time since its origin (the base)
+      const origin = world.base.W;
+      this.impl = {
+        init: () => initCosmos(world.seed, world.base),
+        advance: (s, W) => advanceCosmos(s as CosmosSim, W - origin),
+        clone: (s) => cloneCosmos(s as CosmosSim),
+      } as Impl<SimState<T>>;
     } else {
       const ctx: SpaceCtx = spaceCtx(world.seed, world.raids ?? []);
       this.sctx = ctx;
@@ -109,7 +121,7 @@ export class SimRunner<T extends ThemeId = ThemeId> {
   accepts(cp: StoredCheckpoint): boolean {
     return (
       cp.worldId === this.world.id &&
-      cp.simVersion === SIM_VERSION &&
+      cp.simVersion === simVersionOf(this.theme) &&
       cp.theme === this.theme &&
       cp.baseW === this.world.base.W &&
       typeof cp.W === 'number' &&
@@ -120,7 +132,9 @@ export class SimRunner<T extends ThemeId = ThemeId> {
       typeof (cp.state as { done?: unknown }).done === 'number' &&
       (this.theme === 'space'
         ? Array.isArray((cp.state as { rovers?: unknown }).rovers) && cp.raidKey === raidKey(this.sctx!.raids, cp.W)
-        : typeof (cp.state as { keeper?: unknown }).keeper === 'object')
+        : this.theme === 'cosmos'
+          ? (cp.state as { seed?: unknown }).seed === this.world.seed && Array.isArray((cp.state as { sn?: unknown }).sn)
+          : typeof (cp.state as { keeper?: unknown }).keeper === 'object')
     );
   }
 
@@ -175,7 +189,7 @@ export class SimRunner<T extends ThemeId = ThemeId> {
   checkpoint(): StoredCheckpoint {
     return {
       worldId: this.world.id,
-      simVersion: SIM_VERSION,
+      simVersion: simVersionOf(this.theme),
       theme: this.theme,
       baseW: this.world.base.W,
       W: this.curW,

@@ -11,7 +11,7 @@
 
 import { RULES_UNITS_PER_CLUSTER, RULES_UNITS_PER_ZONE } from './units';
 import { clusterWorld, geometryFor, isRightCluster, slotWorld, type Geometry, type Vec2 } from '../core/world';
-import type { ThemeId } from '../core/session';
+import type { WorkTheme as ThemeId } from '../core/session';
 
 export type NodeId = string;
 

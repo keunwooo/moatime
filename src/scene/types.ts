@@ -31,6 +31,8 @@ export interface FrameInfo {
   effects: number;
   /** The camera is travelling to a new framing (ambient events wait). */
   cameraMoving: boolean;
+  /** "자동 카메라" is off: the view stays where it is. */
+  cameraLock: boolean;
   /** Time of day, season, weather and the headline event at W. */
   env: WorldEnv;
   /** Concurrency and particle budgets for decorative extras. */

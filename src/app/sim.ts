@@ -12,6 +12,7 @@ import { SimRunner, type SimState, type StoredCheckpoint } from '../sim/runner';
 import { engine } from './runtime';
 import { browserStorage } from '../core/persist';
 import { pacedRaids, setPace } from '../world/pace';
+import { setCosmosRecords } from '../sim/cosmosDescribe';
 
 const runners = new Map<string, SimRunner>();
 const EMPTY: never[] = [];
@@ -38,16 +39,22 @@ function readCheckpoint(theme: ThemeId): StoredCheckpoint | null {
 
 export function simRunner<T extends ThemeId>(theme: T): SimRunner<T> {
   const w = engine.getState().world;
-  const key = `${w.id}:${w.base.W}:${theme}`;
+  // the cosmos starts from its own origin (the world time its universe began)
+  const origin = theme === 'cosmos' ? engine.cosmosOrigin() : -1;
+  const key = theme === 'cosmos' ? `${w.id}:${w.base.W}:cosmos@${origin}` : `${w.id}:${w.base.W}:${theme}`;
   let r = runners.get(key) as SimRunner<T> | undefined;
   if (!r) {
-    for (const k of runners.keys()) if (!k.startsWith(`${w.id}:${w.base.W}:`)) runners.delete(k);
-    r = new SimRunner(theme, { id: w.id, seed: w.seed, base: w.base, raids: pacedRaids(w.seed, w.pace ?? []) }, readCheckpoint(theme), engine.worldTime());
+    for (const k of runners.keys()) {
+      if (!k.startsWith(`${w.id}:${w.base.W}:`) || (theme === 'cosmos' && k.includes(':cosmos@'))) runners.delete(k);
+    }
+    const base = theme === 'cosmos' ? { W: origin, legacy: null } : w.base;
+    r = new SimRunner(theme, { id: w.id, seed: w.seed, base, raids: pacedRaids(w.seed, w.pace ?? []) }, readCheckpoint(theme), engine.worldTime());
     runners.set(key, r as SimRunner);
   }
   // raids follow the sessions as they are started (memoised per segment list)
   const pace = w.pace ?? EMPTY;
   setPace(pace);
+  if (theme === 'cosmos') setCosmosRecords(w.cosmos?.past, w.cosmos?.dates);
   if (theme === 'space') r.setRaids(pacedRaids(w.seed, pace));
   return r;
 }

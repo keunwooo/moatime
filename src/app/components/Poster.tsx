@@ -7,7 +7,7 @@ import type { ThemeId } from '../../core/session';
 export function Poster({ theme, visible }: { theme: ThemeId; visible: boolean }) {
   return (
     <div className={`poster ${visible ? 'show' : ''}`} aria-hidden="true">
-      {theme === 'forest' ? <ForestPoster /> : <SpacePoster />}
+      {theme === 'forest' ? <ForestPoster /> : theme === 'space' ? <SpacePoster /> : <CosmosPoster />}
     </div>
   );
 }
@@ -110,6 +110,51 @@ function SpacePoster() {
         <circle cx="10" cy="-4" r="3" fill="#f0d29c" />
       </g>
       <rect width="1600" height="900" filter="url(#ps-paper)" />
+    </svg>
+  );
+}
+
+function CosmosPoster() {
+  // a quiet first-light sky: the web, a nebula wash on the left, the home star and its orbits
+  const stars = Array.from({ length: 70 }, (_, i) => {
+    const x = (i * 733) % 1600;
+    const y = 30 + ((i * 397) % 560);
+    const inTimer = x > 470 && x < 1130 && y > 170 && y < 600;
+    return inTimer ? null : <circle key={i} cx={x} cy={y} r={0.8 + ((i * 7) % 5) * 0.35} fill="#eef0fa" opacity={0.25 + ((i * 13) % 7) * 0.08} />;
+  });
+  return (
+    <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice" width="100%" height="100%">
+      <defs>
+        <radialGradient id="pc-neb" cx="0.12" cy="0.6" r="0.45">
+          <stop offset="0" stopColor="#9a4e7c" stopOpacity="0.55" />
+          <stop offset="0.6" stopColor="#3e8c93" stopOpacity="0.18" />
+          <stop offset="1" stopColor="#120f2a" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="pc-star" cx="0.5" cy="0.84" r="0.12">
+          <stop offset="0" stopColor="#f7d9aa" stopOpacity="0.9" />
+          <stop offset="0.35" stopColor="#f5d69a" stopOpacity="0.25" />
+          <stop offset="1" stopColor="#f5d69a" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="pc-gal" cx="0.83" cy="0.2" r="0.12">
+          <stop offset="0" stopColor="#f7d9aa" stopOpacity="0.6" />
+          <stop offset="1" stopColor="#7466b4" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="1600" height="900" fill="#120f2a" />
+      <rect width="1600" height="900" fill="url(#pc-neb)" />
+      <rect width="1600" height="900" fill="url(#pc-gal)" />
+      <g stroke="#7466b4" strokeOpacity="0.18" fill="none">
+        <path d="M150 210 Q 300 260 330 500" />
+        <path d="M150 210 Q 520 120 960 110" />
+        <path d="M1340 400 Q 1450 520 1490 640" />
+      </g>
+      {stars}
+      <ellipse cx="800" cy="752" rx="536" ry="107" fill="none" stroke="#e8c27a" strokeOpacity="0.12" />
+      <ellipse cx="800" cy="752" rx="320" ry="64" fill="none" stroke="#e8c27a" strokeOpacity="0.1" />
+      <rect width="1600" height="900" fill="url(#pc-star)" />
+      <circle cx="800" cy="752" r="14" fill="#f7d9aa" />
+      <circle cx="1100" cy="790" r="24" fill="#3f7fa6" />
+      <circle cx="1294" cy="700" r="20" fill="#e8c27a" opacity="0.85" />
     </svg>
   );
 }

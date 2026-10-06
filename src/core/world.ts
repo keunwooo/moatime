@@ -9,7 +9,7 @@
 
 import { hash32, rngFor } from './rng';
 import type { GrowthRules } from './rules';
-import type { ThemeId } from './session';
+import type { WorkTheme as ThemeId } from './session';
 
 export type AspectClass = 'wide' | 'tall';
 

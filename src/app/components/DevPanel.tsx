@@ -5,6 +5,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { cosmosStage, fieldStars, milestones, type CosmosSim } from '../../sim/cosmos';
+import { cosmosSights, devCallSight, spaceWeatherAt } from '../../world/cosmos';
 import { formatDurationKo } from '../../core/duration';
 import { SIM_KEY_PREFIX } from '../../core/persist';
 import { SEASON } from '../../sim/config';
@@ -75,12 +77,18 @@ export default function DevPanel() {
   const info = hostRef.current?.devInfo();
   const setW = (w: number) => void engine.devSetWorldTime(Math.max(0, w));
   const season = seasonMix(W);
-  const env = worldEnv(theme, state.world.seed, W);
+  const env = worldEnv(theme, state.world.seed, W, engine.cosmosOrigin());
   const upcoming = eventsIn(EVENT_DEFS, theme, state.world.seed, W, W + 24 * 3600e3)[0];
   const slots = hostRef.current?.devDirector.active() ?? [];
   const q = SEASON.yearMs / 4;
   const nextSeason = (Math.floor(W / q) + 1) * q;
-  const workers: Worker[] = theme === 'space' ? (sim as SpaceSim).rovers : [(sim as ForestSim).keeper, ...((sim as ForestSim).squirrel ? [(sim as ForestSim).squirrel!] : [])];
+  const workers: Worker[] =
+    theme === 'space' ? (sim as SpaceSim).rovers : theme === 'forest' ? [(sim as ForestSim).keeper, ...((sim as ForestSim).squirrel ? [(sim as ForestSim).squirrel!] : [])] : [];
+  const cosmos = theme === 'cosmos' ? (sim as CosmosSim) : null;
+  const origin = engine.cosmosOrigin();
+  const A = Math.max(0, W - origin);
+  const nextMs = cosmos ? milestones(cosmos.seed).find((m) => m.A > A) : undefined;
+  const setA = (a: number) => void engine.devSetCosmosAge(Math.max(0, a));
   let stored = '-';
   try {
     const t = localStorage.getItem(`${SIM_KEY_PREFIX}${theme}`);
@@ -115,11 +123,30 @@ export default function DevPanel() {
           <dd>
             {formatDurationKo(W, { seconds: true })} ({Math.round(W / 1000)}s) · 세션 E {formatDurationKo(engine.sessionElapsed(), { seconds: true })}
           </dd>
-          <dt>구역</dt>
-          <dd>
-            완성 {sim.done} · 구역 {Math.floor(sim.done / UPZ)} · 군락 {sim.cluster} ({sim.done - sim.cluster * UPC}/4)
-            {theme === 'forest' ? ` · 숲 ${forestStage(sim as ForestSim, W)}단계` : ` · 콜로니 ${spaceStage(sim as SpaceSim)}단계`}
-          </dd>
+          {cosmos ? (
+            <>
+              <dt>우주</dt>
+              <dd>
+                A {formatDurationKo(A, { seconds: true })} ({Math.round(A / 1000)}s) · 원점 {Math.round(origin / 1000)}s · {cosmosStage(cosmos.seed, A)}단계 · 항성계 {cosmos.done} · 별 {cosmos.totals.stars} · 행성 {cosmos.totals.planets} · 초신성 {cosmos.totals.supernovae} · 배경 별 {fieldStars(A)}
+              </dd>
+              <dt>은하 사건</dt>
+              <dd>
+                날씨 {spaceWeatherAt(cosmos.seed, A).id} · 다음 이정표 {nextMs ? `${nextMs.id} ${formatDurationKo(nextMs.A - A, { seconds: true })} 뒤` : '-'} · 헤드라인 {env.event ? `${env.event.kind} ${Math.round((env.event.t1 - W) / 1000)}s 남음` : '-'} · 다음 세션 사건{' '}
+                {(() => {
+                  const n = cosmosSights(cosmos.seed, origin, engine.getState().world.pace ?? []).find((e) => e.t0 > W);
+                  return n ? `${n.kind} ${formatDurationKo(n.t0 - W)} 뒤` : '-';
+                })()}
+              </dd>
+            </>
+          ) : (
+            <>
+              <dt>구역</dt>
+              <dd>
+                완성 {sim.done} · 구역 {Math.floor(sim.done / UPZ)} · 군락 {(sim as ForestSim | SpaceSim).cluster} ({sim.done - (sim as ForestSim | SpaceSim).cluster * UPC}/4)
+                {theme === 'forest' ? ` · 숲 ${forestStage(sim as ForestSim, W)}단계` : ` · 콜로니 ${spaceStage(sim as SpaceSim)}단계`}
+              </dd>
+            </>
+          )}
           <dt>계절</dt>
           <dd>
             {SEASON_NAMES[season.id]} {Math.round(season.p * 100)}% · {season.year + 1}년째
@@ -221,6 +248,27 @@ export default function DevPanel() {
             설정
           </button>
         </div>
+        {cosmos && (
+          <div className="row">
+            <span>연대기</span>
+            {[0, 10, 90, 150, 240, 570, 1110, 1350, 1460].map((sec) => (
+              <button key={sec} type="button" onClick={() => setA(sec * 1000)}>
+                {sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : `0:${String(sec).padStart(2, '0')}`}
+              </button>
+            ))}
+            {nextMs && (
+              <button type="button" onClick={() => setA(nextMs.A - 20_000)}>
+                다음 이정표 −20초
+              </button>
+            )}
+            <button type="button" onClick={() => devCallSight(W + 10_000, origin, cosmos.seed)}>
+              세션 사건 부르기(10초 뒤)
+            </button>
+            <button type="button" onClick={() => void engine.newUniverse()}>
+              새 우주 시작
+            </button>
+          </div>
+        )}
         <div className="row">
           <span>빠른 재생</span>
           {[1, 10, 60, 300].map((k) => (

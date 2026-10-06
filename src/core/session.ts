@@ -17,7 +17,10 @@ import type { SimBase } from '../sim/types';
 import { PACE, type PaceSeg } from '../world/pace';
 
 export type Mode = 'countdown' | 'stopwatch';
-export type ThemeId = 'forest' | 'space';
+/** Themes with a work simulation (a keeper or drones). */
+export type WorkTheme = 'forest' | 'space';
+/** All themes: the cosmos grows with the universe's own age (see `cosmosOrigin`). */
+export type ThemeId = WorkTheme | 'cosmos';
 export type Status = 'idle' | 'running' | 'paused' | 'completed';
 export type MotionPref = 'system' | 'reduce' | 'full';
 
@@ -55,6 +58,18 @@ export interface World {
   migratedFrom?: { v: number; rulesVersion: number; W: number; at: number };
   /** One segment per focus session in world time (raids are paced to fit the sessions). */
   pace?: PaceSeg[];
+  /**
+   * The cosmos theme's universe: the world time it was born (when the theme was first picked,
+   * or "새 우주 시작"), so everyone sees its Big Bang. Its age is A = W − origin.
+   */
+  cosmos?: {
+    origin: number;
+    resets: number;
+    /** [world time, wall-clock time] at the start of each session since (for the records). */
+    dates?: [number, number][];
+    /** Origins of earlier universes ("새 우주 시작"), so their constellations stay on record. */
+    past?: number[];
+  };
 }
 
 export interface Settings {
@@ -202,7 +217,9 @@ export function start(s: Persisted, now: number, opts: { mode: Mode; targetMs: n
     endReason: null,
   };
   const pace = [...(s.world.pace ?? []), { w0: s.world.bankedMs, len: targetMs, w1: null }].slice(-PACE.keep);
-  return { ...s, world: { ...s.world, pace }, session };
+  // the cosmos remembers when each session began (its constellations carry the date)
+  const cosmos = s.world.cosmos ? { ...s.world.cosmos, dates: [...(s.world.cosmos.dates ?? []), [s.world.bankedMs, now] as [number, number]].slice(-PACE.keep) } : undefined;
+  return { ...s, world: cosmos ? { ...s.world, pace, cosmos } : { ...s.world, pace }, session };
 }
 
 /** Closes the open pace segment at world time W (a session that added nothing is dropped). */
@@ -296,6 +313,28 @@ export function createNewWorld(s: Persisted, now: number, seed?: number): Persis
   const archived: ArchivedWorld = { ...closed.world, archivedAt: now };
   const archive = closed.world.bankedMs > 0 ? [archived, ...closed.archive].slice(0, 12) : closed.archive;
   return { ...closed, world: newWorld(now, seed), session: null, archive, marks: { celebratedSessionId: null } };
+}
+
+/** World time at which the cosmos theme's universe began (W while it has not begun yet). */
+export function cosmosOrigin(s: Persisted, now: number): number {
+  return s.world.cosmos ? s.world.cosmos.origin : worldTime(s, now);
+}
+
+/**
+ * Gives the world its universe the first time the cosmos theme is on view (picked here, picked in
+ * another tab, or a new world made while it is chosen). Returns the same object otherwise.
+ */
+export function withCosmosOrigin(s: Persisted, now: number): Persisted {
+  if (s.settings.theme !== 'cosmos' || s.world.cosmos) return s;
+  return { ...s, world: { ...s.world, cosmos: { origin: worldTime(s, now), resets: 0 } } };
+}
+
+/** "새 우주 시작": the cosmos begins again from its Big Bang now. Forest, space and W stay. */
+export function newUniverse(s: Persisted, now: number): Persisted {
+  const resets = (s.world.cosmos?.resets ?? 0) + 1;
+  const old = s.world.cosmos;
+  const past = old ? [...(old.past ?? []), old.origin].slice(-20) : undefined;
+  return { ...s, world: { ...s.world, cosmos: { origin: worldTime(s, now), resets, dates: old?.dates, past } } };
 }
 
 /**

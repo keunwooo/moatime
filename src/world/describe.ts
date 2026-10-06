@@ -6,6 +6,8 @@ import { worldEnv } from './env';
 import { WEATHER_NAMES } from './weather';
 
 export function envRows(theme: ThemeId, seed: number, W: number): { label: string; value: string }[] {
+  // the cosmos has no days or weather of this kind (its rows come from sim/cosmosDescribe.ts)
+  if (theme === 'cosmos') return [];
   const env = worldEnv(theme, seed, W);
   const rows = [{ label: '하루', value: `${env.day.day + 1}일째 ${PHASE_NAMES[env.day.phase]} (${clockText(theme, W)})` }];
   if (theme === 'forest') {

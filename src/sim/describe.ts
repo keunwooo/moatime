@@ -13,6 +13,10 @@ import { FACTION_NAME } from './raid';
 import { EVENT_TEXT, eventShown } from '../world/events';
 import { headlineAt } from '../world/pace';
 import { kindOf } from './spacePlan';
+import type { CosmosSim } from './cosmos';
+import { cosmosDetailRows, cosmosLine, cosmosShownEvent } from './cosmosDescribe';
+
+export type AnySim = ForestSim | SpaceSim | CosmosSim;
 
 export const KIND_NAME: Record<SpaceKind, string> = {
   generator: '발전기',
@@ -282,19 +286,22 @@ export function forestLine(s: ForestSim, W: number): string {
 }
 
 /** The headline event shown now (rare sights and planet weather), if any. */
-export function shownEvent(theme: ThemeId, sim: ForestSim | SpaceSim, W: number): string | null {
+export function shownEvent(theme: ThemeId, sim: AnySim, W: number): string | null {
+  if (theme === 'cosmos') return cosmosShownEvent(sim as CosmosSim, W);
   const e = headlineAt(theme, sim.seed, W);
   if (!e || !EVENT_TEXT[e.kind]) return null;
   const stage = theme === 'forest' ? forestStage(sim as ForestSim, W) : spaceStage(sim as SpaceSim);
   return eventShown(e.kind, stage) ? e.kind : null;
 }
 
-export function workLine(theme: ThemeId, sim: ForestSim | SpaceSim, W: number): string {
+export function workLine(theme: ThemeId, sim: AnySim, W: number): string {
+  if (theme === 'cosmos') return cosmosLine(sim as CosmosSim, W);
   // a rare sight or the planet's weather is the news while it lasts (a raid is told first)
   const ev = shownEvent(theme, sim, W);
   if (ev && !(theme === 'space' && (sim as SpaceSim).raid)) return EVENT_TEXT[ev].line;
   return theme === 'forest' ? forestLine(sim as ForestSim, W) : spaceLine(sim as SpaceSim, W);
 }
+
 
 // ---- numbers ----------------------------------------------------------------
 
@@ -314,10 +321,11 @@ export interface DetailRow {
   value: string;
 }
 
-export function detailRows(theme: ThemeId, sim: ForestSim | SpaceSim, W: number): DetailRow[] {
+export function detailRows(theme: ThemeId, sim: AnySim, W: number): DetailRow[] {
+  if (theme === 'cosmos') return cosmosDetailRows(sim as CosmosSim, W);
   const ev = shownEvent(theme, sim, W);
   const now: DetailRow[] = ev ? [{ label: '지금', value: EVENT_TEXT[ev].name }] : [];
-  return [...now, ...detailRowsOf(theme, sim, W)];
+  return [...now, ...detailRowsOf(theme, sim as ForestSim | SpaceSim, W)];
 }
 
 function detailRowsOf(theme: ThemeId, sim: ForestSim | SpaceSim, W: number): DetailRow[] {

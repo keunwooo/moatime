@@ -40,6 +40,7 @@ export type HostState = 'init' | 'loading' | 'ready' | 'failed';
 const themeLoaders: Record<ThemeId, () => Promise<ThemeScene>> = {
   forest: () => import('./forest/ForestScene').then((m) => new m.ForestScene()),
   space: () => import('./space/SpaceScene').then((m) => new m.SpaceScene()),
+  cosmos: () => import('./cosmos/CosmosScene').then((m) => new m.CosmosScene()),
 };
 
 export interface DevSceneInfo {
@@ -340,7 +341,7 @@ export class SceneHost {
     const prevW = this.prevW < 0 ? W : this.prevW;
     this.prevW = W;
     const sim = this.sim(theme.id, W);
-    const env = worldEnv(theme.id, this.engine.getState().world.seed, W);
+    const env = worldEnv(theme.id, this.engine.getState().world.seed, W, this.engine.cosmosOrigin());
 
     // Camera framing from the simulated work area. Key moments hold the current view.
     const choice = theme.framing({ sim, W, aspect: this.aspect, reduced });
@@ -391,6 +392,7 @@ export class SceneHost {
       lowPower: this.opts.lowPower,
       effects,
       cameraMoving: this.cameraMoving,
+      cameraLock: this.opts.cameraLock,
       env,
       director: this.director,
     };

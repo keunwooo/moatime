@@ -197,6 +197,20 @@ function validWorld(v: unknown, version: 1 | 2 | 3): World | null {
   if (migratedFrom) world.migratedFrom = migratedFrom;
   const pace = validPace(v.pace, v.bankedMs);
   if (pace) world.pace = pace;
+  const c = v.cosmos;
+  // the origin may lie inside the open session (picked while running), never far beyond
+  if (isObj(c) && isNonNeg(c.origin) && c.origin <= v.bankedMs + 400 * 24 * 3600_000) {
+    world.cosmos = { origin: c.origin, resets: isNonNeg(c.resets) ? Math.floor(c.resets) : 0 };
+    if (Array.isArray(c.dates)) {
+      const dates = c.dates.filter((d): d is [number, number] => Array.isArray(d) && d.length === 2 && isNonNeg(d[0]) && isNum(d[1])).slice(-PACE.keep);
+      if (dates.length) world.cosmos.dates = dates;
+    }
+    if (Array.isArray(c.past)) {
+      const origin = world.cosmos.origin;
+      const past = c.past.filter((x): x is number => isNonNeg(x) && x <= origin).slice(-20);
+      if (past.length) world.cosmos.past = past;
+    }
+  }
   return world;
 }
 
@@ -247,7 +261,7 @@ function validSession(v: unknown): Session | null {
 function validSettings(v: unknown): Settings {
   const s: Settings = { ...DEFAULT_SETTINGS };
   if (!isObj(v)) return s;
-  if (v.theme === 'forest' || v.theme === 'space') s.theme = v.theme;
+  if (v.theme === 'forest' || v.theme === 'space' || v.theme === 'cosmos') s.theme = v.theme;
   if (v.mode === 'countdown' || v.mode === 'stopwatch') s.mode = v.mode;
   if (isNonNeg(v.countdownMs) && v.countdownMs > 0 && Number.isSafeInteger(v.countdownMs)) s.countdownMs = v.countdownMs;
   if (typeof v.ambientSound === 'boolean') s.ambientSound = v.ambientSound;

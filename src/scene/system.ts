@@ -5,7 +5,7 @@
  * draw order of cards that share a depth stays stable.
  */
 
-import type { ThemeId } from '../core/session';
+import type { WorkTheme as ThemeId } from '../core/session';
 import type { Geometry, Vec2 } from '../core/world';
 import { nodePos } from '../sim/layout';
 import type { CardLayer } from './diorama';

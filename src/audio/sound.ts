@@ -126,6 +126,59 @@ export class SoundEngine {
         this.birdTimer = window.setTimeout(chirp, 18000 + Math.random() * 30000);
       };
       this.birdTimer = window.setTimeout(chirp, 9000);
+    } else if (theme === 'cosmos') {
+      // "우주의 숨": an open-fifth pad whose filter breathes very slowly, and a soft airy hush
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 520;
+      lp.Q.value = 0.6;
+      const sweep = ctx.createOscillator();
+      sweep.frequency.value = 0.025;
+      const sweepGain = ctx.createGain();
+      sweepGain.gain.value = 260;
+      sweep.connect(sweepGain).connect(lp.frequency);
+      lp.connect(gain);
+      for (const [fq, g] of [
+        [110, 0.13],
+        [164.8, 0.09],
+        [246.9, 0.045],
+        [329.6, 0.02],
+      ] as const) {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = fq;
+        o.detune.value = (Math.random() - 0.5) * 6;
+        const og = ctx.createGain();
+        og.gain.value = g;
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 0.02 + Math.random() * 0.05;
+        const lg = ctx.createGain();
+        lg.gain.value = g * 0.45;
+        lfo.connect(lg).connect(og.gain);
+        o.connect(og).connect(lp);
+        o.start();
+        lfo.start();
+        nodes.push(o, lfo);
+      }
+      const air = ctx.createBufferSource();
+      air.buffer = this.noiseBuffer(ctx, 6);
+      air.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1400;
+      bp.Q.value = 0.4;
+      const ag = ctx.createGain();
+      ag.gain.value = 0.02;
+      const breath = ctx.createOscillator();
+      breath.frequency.value = 0.1;
+      const bg = ctx.createGain();
+      bg.gain.value = 0.015;
+      breath.connect(bg).connect(ag.gain);
+      air.connect(bp).connect(ag).connect(gain);
+      air.start();
+      breath.start();
+      sweep.start();
+      nodes.push(air, breath, sweep);
     } else {
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass';
@@ -239,6 +292,30 @@ export class SoundEngine {
       }
     }
     return out;
+  }
+
+  /** The Big Bang: a soft chord rising over four seconds (never a boom). */
+  swell() {
+    const ctx = this.ensure();
+    if (!ctx || !this.master || ctx.state !== 'running') return;
+    const t0 = ctx.currentTime + 0.05;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.16, t0 + 4);
+    g.gain.setTargetAtTime(0, t0 + 4.2, 2.2);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(220, t0);
+    lp.frequency.exponentialRampToValueAtTime(1600, t0 + 4);
+    lp.connect(g).connect(this.master);
+    for (const f of [110, 165, 220, 330]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      o.connect(lp);
+      o.start(t0);
+      o.stop(t0 + 14);
+    }
   }
 
   playChime() {

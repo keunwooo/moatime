@@ -12,8 +12,11 @@
 import {
   checkCompletion,
   continueAfter,
+  cosmosOrigin,
   createNewWorld,
   finish,
+  newUniverse,
+  withCosmosOrigin,
   pause,
   rebaseClock,
   resetTimer,
@@ -91,6 +94,12 @@ export class TimerEngine {
     } else if (loaded.source !== 'primary') {
       this.persist(this.stamp(this.state, now));
     }
+    // a cosmos chosen without its universe (an older tab wrote the state) gets one now
+    const withOrigin = withCosmosOrigin(this.state, now);
+    if (withOrigin !== this.state) {
+      this.state = this.stamp(withOrigin, now);
+      this.persist(this.state);
+    }
 
     if (env.listenStorage) {
       this.unlisten = env.listenStorage((key, value) => {
@@ -112,6 +121,11 @@ export class TimerEngine {
 
   now(): number {
     return this.nowFn();
+  }
+
+  /** World time at which the cosmos universe began (see session.cosmosOrigin). */
+  cosmosOrigin(): number {
+    return cosmosOrigin(this.state, this.nowFn());
   }
   getState = (): Persisted => this.state;
   subscribe = (fn: () => void): (() => void) => {
@@ -170,6 +184,10 @@ export class TimerEngine {
   }
   newWorld() {
     return this.commit((s, now) => createNewWorld(s, now));
+  }
+  /** "새 우주 시작": only the cosmos theme starts over from its Big Bang. */
+  newUniverse() {
+    return this.commit((s, now) => newUniverse(s, now));
   }
   updateSettings(patch: Partial<Settings>) {
     return this.commit((s) => {
@@ -236,6 +254,20 @@ export class TimerEngine {
       return { ...s, world: { ...s.world, pace } };
     });
   }
+  /** Dev: sets the cosmos universe's age to A by moving its origin (world time is unchanged). */
+  devSetCosmosAge(A: number) {
+    return this.commit((s, now) => {
+      const W = worldTime(s, now);
+      const origin = Math.max(0, Math.floor(W - Math.max(0, A)));
+      if (W - origin < A) {
+        // not enough world time yet: add it (dev only)
+        const open = s.session && !s.session.banked ? sessionElapsed(s.session, now) : 0;
+        const bankedMs = Math.max(0, Math.floor(A - open));
+        return { ...s, world: { ...s.world, bankedMs, cosmos: { origin: 0, resets: s.world.cosmos?.resets ?? 0 } } };
+      }
+      return { ...s, world: { ...s.world, cosmos: { origin, resets: s.world.cosmos?.resets ?? 0 } } };
+    });
+  }
   devAddWorldTime(deltaMs: number) {
     return this.commit((s) => ({ ...s, world: { ...s.world, bankedMs: Math.max(0, s.world.bankedMs + deltaMs) } }));
   }
@@ -271,7 +303,8 @@ export class TimerEngine {
       const fresh = this.readFresh();
       // Prefer whichever copy is newer; the in-memory copy wins when storage is unavailable.
       const base = fresh && fresh.rev >= this.state.rev ? fresh : this.state;
-      const next = fn(base, now);
+      // the cosmos gets its universe in the same write that first shows it
+      const next = withCosmosOrigin(fn(base, now), now);
       if (next === base) {
         if (base !== this.state) this.adopt(base, now, false);
         return;
