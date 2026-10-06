@@ -419,23 +419,30 @@ export function paintTerrain(spec: TerrainSpec): PaintCanvas {
   const field = (c: { x: number; y: number }, k: number, salt: number) => {
     const rr = new Rng(planetSeed ^ (salt * 7919));
     const s = k * scale;
-    // ore rocks in an arc behind the base spot
-    for (let i = 0; i < 7; i++) {
-      const a = -Math.PI * 0.95 + (i / 6) * Math.PI * 0.9;
-      const x = c.x + Math.cos(a) * 34 * s * (salt % 2 ? -1 : 1);
-      const y = c.y + Math.sin(a) * 15 * s - 4 * s;
-      const ore: RGB = mix(pal.rock, [176, 112, 63], 0.55);
-      softEllipse(ctx, x + 2 * s, y + 2 * s, 7 * s, 2.5 * s, shade(ore, 0.6), 0.32, 0);
-      gouache(ctx, blobPoints(x, y - 2 * s, rr.range(4.5, 6.5) * s, rr.range(3.2, 4.5) * s, rr, { lumps: 0.3, flatBottom: 0.5 }), {
+    // ore rocks in a wide arc behind the base spot, reaching out past the building's sides so
+    // the workers' rocks show (the same arc the workers use in systems/units.ts)
+    for (let i = 0; i < 9; i++) {
+      const a = -Math.PI * 0.96 + (i / 8) * Math.PI * 0.92;
+      const x = c.x + Math.cos(a) * 58 * s;
+      const y = c.y + Math.sin(a) * 22 * s - 2 * s;
+      // copper ore: a lump with a darker band and bright metal flecks (never blue crystals)
+      const ore: RGB = mix(pal.rock, [196, 116, 58], 0.7);
+      const rx = rr.range(5.5, 8) * s;
+      const ry = rr.range(3.8, 5.2) * s;
+      softEllipse(ctx, x + 2 * s, y + 2 * s, rx * 1.3, 2.8 * s, shade(ore, 0.65), 0.36, 0);
+      gouache(ctx, blobPoints(x, y - 2 * s, rx, ry, rr, { lumps: 0.32, flatBottom: 0.5 }), {
         base: vary(ore, rr, 0.02, 0.06, 0.06),
         r: rr,
         dabDensity: 9,
         roundness: 0.9,
         grain: 0.35,
       });
-      // a glint of metal
-      ctx.fillStyle = css(lighten(ore, 0.45), 0.7);
-      ctx.fillRect(x - 1.5 * s, y - 5 * s, 2 * s, 1.2 * s);
+      ctx.fillStyle = css(shade(ore, 0.35), 0.45);
+      ctx.fillRect(x - rx * 0.7, y - 1.6 * s, rx * 1.4, 1.1 * s);
+      for (let g = 0; g < 3; g++) {
+        ctx.fillStyle = css(g ? lighten(ore, 0.55) : [255, 236, 196], g ? 0.8 : 0.95);
+        ctx.fillRect(x + rr.range(-0.6, 0.4) * rx, y - 2 * s - rr.range(0.2, 0.8) * ry, 1.8 * s, 1.2 * s);
+      }
     }
     // the vent: a dark crack with a warm glow inside
     const vx = c.x + 30 * s * (salt % 2 ? 1 : -1);

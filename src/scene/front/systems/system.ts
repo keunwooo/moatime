@@ -35,7 +35,7 @@ export class SystemStage {
   private sizeKey = '';
   private ringKey = '';
   /** Where each planet of the sector is drawn (screen px), read by the stage switch. */
-  readonly at: { x: number; y: number; r: number }[] = [];
+  readonly at: { x: number; y: number; r: number; dim: number }[] = [];
 
   constructor() {
     this.starTex = toTexture(paintStar(256), { label: 'front-sys-star' });
@@ -116,7 +116,7 @@ export class SystemStage {
       const known = p.idx <= v.planet.idx + 1;
       s.alpha = (behind ? 0.25 : 1) * (known ? 1 : 0.45);
       s.visible = true;
-      this.at.push({ x: pos.x, y: pos.y, r });
+      this.at.push({ x: pos.x, y: pos.y, r, dim: behind ? 0.3 : 1 });
       rk += `${Math.round(pos.x)},${Math.round(pos.y)},${p.idx < held ? devLevel(A - p.conqueredAt) : -1};`;
     }
     // rings (redrawn when a planet moves a pixel or a battle ring grows a step)
@@ -131,16 +131,16 @@ export class SystemStage {
         const p = list[sector * 7 + i];
         const a = this.at[i];
         if (p.idx < held) {
-          this.ringG.circle(a.x, a.y, a.r * 1.35).stroke({ width: 1.6, color: mine, alpha: 0.75 });
+          this.ringG.circle(a.x, a.y, a.r * 1.35).stroke({ width: 1.6, color: mine, alpha: 0.75 * a.dim });
           const lvl = devLevel(A - p.conqueredAt);
-          if (lvl >= 3) this.ringG.circle(a.x, a.y, a.r * 1.65).stroke({ width: 1, color: mine, alpha: 0.4 });
+          if (lvl >= 3) this.ringG.circle(a.x, a.y, a.r * 1.65).stroke({ width: 1, color: mine, alpha: 0.4 * a.dim });
         } else if (p.idx === v.planet.idx) {
-          this.ringG.arc(a.x, a.y, a.r * 1.35, 0, Math.PI).stroke({ width: 1.6, color: mine, alpha: 0.8 });
-          this.ringG.arc(a.x, a.y, a.r * 1.35, Math.PI, Math.PI * 2).stroke({ width: 1.6, color: rival, alpha: 0.8 });
+          this.ringG.arc(a.x, a.y, a.r * 1.35, 0, Math.PI).stroke({ width: 1.6, color: mine, alpha: 0.8 * a.dim });
+          this.ringG.arc(a.x, a.y, a.r * 1.35, Math.PI, Math.PI * 2).stroke({ width: 1.6, color: rival, alpha: 0.8 * a.dim });
         }
         if (p.idx === battlePlanet && ringStep >= 0) {
           const q = ringStep / 30;
-          this.ringG.circle(a.x, a.y, a.r * (1.5 + q * 1.4)).stroke({ width: 1.2, color: 0xf2b544, alpha: 0.7 * (1 - q) });
+          this.ringG.circle(a.x, a.y, a.r * (1.5 + q * 1.4)).stroke({ width: 1.2, color: 0xf2b544, alpha: 0.7 * (1 - q) * a.dim });
         }
       }
       // routes between the planets held and the front

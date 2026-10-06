@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceFront,
   ALL_SITES,
+  CAPITAL_MAX,
   capturesIn,
   cloneFront,
+  ESCORT_MAX,
   flagshipAt,
   frontAt,
   frontPlanet,
@@ -21,12 +23,13 @@ import {
   planetsTo,
   planetWorks,
   RIVAL_HOME,
+  shipsAt,
   SITE_COUNT,
   stageTimes,
   stockAt,
   tideIndex,
 } from './front';
-import { armyMix, armyShares, armySize, ARMY_KINDS } from './frontPlan';
+import { armyMix, armyShares, armySize, ARMY_KINDS, ARMY_MAX } from './frontPlan';
 import { SimRunner } from './runner';
 
 const S = 1000;
@@ -212,6 +215,18 @@ describe('front: army and ledger', () => {
     }
     expect(armyShares(10 * MIN).t1).toBe(1);
     expect(armyShares(5 * H).t1).toBeCloseTo(0.2, 6);
+  });
+
+  it('the army and the fleet stop growing (no footer of tens of thousands after a long war)', () => {
+    expect(armySize(17 * H)).toBe(ARMY_MAX);
+    expect(armySize(2000 * H)).toBe(ARMY_MAX);
+    for (const seed of SEEDS.slice(0, 3)) {
+      const sh = shipsAt(seed, 2000 * H);
+      expect(sh.s1).toBe(ESCORT_MAX);
+      expect(sh.s2).toBe(CAPITAL_MAX);
+      expect(sh.s3).toBe(1);
+      expect(stockAt(seed, 2000 * H).supply).toBeLessThan(1000);
+    }
   });
 
   it('stock never goes negative', () => {

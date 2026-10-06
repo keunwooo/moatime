@@ -728,6 +728,8 @@ input {
   line-height: 1.35;
   color: var(--ink-faint);
   text-align: center;
+  /* wrap between words, never inside one ("바뀌어 / 요.") */
+  word-break: keep-all;
 }
 
 .fields {

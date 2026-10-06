@@ -267,10 +267,16 @@ export const ARMY_CURVE: [number, number][] = [
   [5 * H, 60],
 ];
 
+/**
+ * The front's army stops growing here (about 17 h): past it the war's growth shows as developed
+ * planets, ships and tiers, not as an ever larger number in the footer.
+ */
+export const ARMY_MAX = 120;
+
 export function armySize(A: number): number {
   if (A < 230_000) return 0;
   if (A <= 5 * H) return Math.floor(piecewise(ARMY_CURVE, A) + 1e-9);
-  return 60 + Math.floor((A - 5 * H) / (12 * MIN));
+  return Math.min(ARMY_MAX, 60 + Math.floor((A - 5 * H) / (12 * MIN)));
 }
 
 /** The world time the i-th unit (0-based) of the army arrives. */

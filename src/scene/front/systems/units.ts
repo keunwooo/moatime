@@ -32,7 +32,7 @@ export interface UnitSlot {
 }
 
 class Pool {
-  private list: { root: Container; body: Sprite; shadow: Sprite }[] = [];
+  private list: { root: Container; body: Sprite; shadow: Sprite; load: Sprite }[] = [];
   private used = 0;
   constructor(
     private layer: Container,
@@ -48,9 +48,13 @@ class Pool {
       const shadow = new Sprite(this.tex.shadow);
       shadow.anchor.set(0.5);
       const body = new Sprite();
-      root.addChild(shadow, body);
+      // a worker's load on the way back from the ore (a copper chunk with a glint)
+      const load = new Sprite(this.tex.dot);
+      load.anchor.set(0.5);
+      load.visible = false;
+      root.addChild(shadow, body, load);
       this.layer.addChild(root);
-      it = { root, body, shadow };
+      it = { root, body, shadow, load };
       this.list.push(it);
     }
     this.used++;
@@ -64,6 +68,9 @@ class Pool {
     return this.used;
   }
 }
+
+/** Which rock of the nine in the ore arc (0 left … 1 right) the n-th worker of a base mines. */
+const ORE_SLOT = [0, 1, 0.125, 0.875, 0.25, 0.75, 0.375, 0.625, 0.5];
 
 export class UnitSystem {
   layer!: Container;
@@ -81,7 +88,7 @@ export class UnitSystem {
     this.pool = new Pool(layer, this.tex);
   }
 
-  private draw(race: RaceId, kind: UnitKind, x: number, y: number, k0: number, pose: 0 | 1, facing: number, tint: number, alpha = 1) {
+  private draw(race: RaceId, kind: UnitKind, x: number, y: number, k0: number, pose: 0 | 1, facing: number, tint: number, alpha = 1, carry = false) {
     const k = k0 * UNIT_SCALE;
     const art = this.tex.race[race].u[kind][pose];
     const it = this.pool.next();
@@ -98,6 +105,13 @@ export class UnitSystem {
     const sw = (art.w / PX) * k * (air ? 0.7 : 0.9);
     it.shadow.scale.set(sw / 64, (sw * 0.3) / 32);
     it.shadow.alpha = air ? 0.35 : 0.55;
+    it.load.visible = carry;
+    if (carry) {
+      it.load.position.set(facing * 3.2 * k, -lift - (art.h / PX) * k * 0.55);
+      it.load.scale.set((3.4 * k) / 8);
+      it.load.tint = 0xe0924a;
+      it.load.alpha = alpha;
+    }
   }
 
   update(f: FrontFrame, st: StructureSystem, tint: number, hidden: (x: number, y: number, mine: boolean) => boolean, pulled = 0, rivalPulled: [number, number] = [0, 0]) {
@@ -122,10 +136,11 @@ export class UnitSystem {
       const level = w.site === HOME ? 1 : 0;
       const at = w.site === HOME ? { x: L.home.x, y: L.home.y } : sitePos(L, planet.seed, w.site, planet.natSide);
       const k = f.k * depthScale(at.y);
-      // the ore arc behind the base: each worker has its own rock
-      const ang = -Math.PI * 0.92 + (((n * 0.37) % 1) * 0.84 + 0.04) * Math.PI;
-      const ox = at.x * f.w + Math.cos(ang) * 34 * k;
-      const oy = at.y * f.h - level * L.cliff * f.h + Math.sin(ang) * 15 * k - 2 * k;
+      // the ore arc behind the base (as painted in paint/terrain.ts): each worker has its own
+      // rock, the side rocks first so the work shows beside the building
+      const ang = -Math.PI * 0.96 + ORE_SLOT[n % ORE_SLOT.length] * Math.PI * 0.92;
+      const ox = at.x * f.w + Math.cos(ang) * 58 * k;
+      const oy = at.y * f.h - level * L.cliff * f.h + Math.sin(ang) * 22 * k - 2 * k;
       const bx = base.x + (n % 2 ? 6 : -6) * k;
       const by = base.y + 3 * k;
       const trip = 24_000 + hash01(planet.idx, j, 61) * 6000;
@@ -153,7 +168,7 @@ export class UnitSystem {
       }
       if (hidden(x, y, true)) continue;
       const pose = (Math.floor((A / 1000) * 3 + j) % 2) as 0 | 1;
-      this.draw(v.race, 'worker', x, y, k, ph > 0.38 && ph < 0.56 ? 1 : pose, facing, tint);
+      this.draw(v.race, 'worker', x, y, k, ph > 0.38 && ph < 0.56 ? 1 : pose, facing, tint, 1, ph >= 0.56 && ph < 0.97);
       shownW++;
     }
 

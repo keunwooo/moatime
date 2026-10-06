@@ -39,7 +39,7 @@ import {
   type TidePhase,
 } from './frontPlan';
 
-export const FRONT_SIM_VERSION = 1;
+export const FRONT_SIM_VERSION = 2;
 
 const S = 1000;
 const MIN = 60_000;
@@ -563,6 +563,9 @@ export function workerTimes(p: PlanetPlan): { site: number; t: number }[] {
 export const ESCORT_EVERY = 8 * MIN;
 export const CAPITAL_FROM = 3 * H;
 export const CAPITAL_EVERY = 25 * MIN;
+/** The fleet stops growing at this many escorts (about 7 h 50 m) and capital ships (about 9 h 15 m). */
+export const ESCORT_MAX = 48;
+export const CAPITAL_MAX = 16;
 
 const flagMemo = new Map<number, number>();
 
@@ -580,8 +583,8 @@ export function flagshipAt(seed: number): number {
 export function shipsAt(seed: number, A: number, lag = 0): { s1: number; s2: number; s3: number } {
   const a = A - lag;
   const c0 = planetsTo(seed, 0)[0].conqueredAt;
-  const s1 = a < c0 ? 0 : 1 + Math.floor((a - c0) / ESCORT_EVERY);
-  const s2 = a < CAPITAL_FROM ? 0 : 1 + Math.floor((a - CAPITAL_FROM) / CAPITAL_EVERY);
+  const s1 = a < c0 ? 0 : Math.min(ESCORT_MAX, 1 + Math.floor((a - c0) / ESCORT_EVERY));
+  const s2 = a < CAPITAL_FROM ? 0 : Math.min(CAPITAL_MAX, 1 + Math.floor((a - CAPITAL_FROM) / CAPITAL_EVERY));
   const s3 = a >= flagshipAt(seed) ? 1 : 0;
   return { s1, s2, s3 };
 }

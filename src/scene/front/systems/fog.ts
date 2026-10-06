@@ -133,6 +133,9 @@ export class FogSystem {
     if (sp > 0) {
       const steps = Math.ceil(Math.min(1, sp) * 90);
       for (let i = 0; i <= steps; i++) seen(along(path, (i / 90) * Math.min(1, sp)).p, 0.2);
+      // the middle of the map between the lake and home, once the scout is out (on a tall
+      // screen the sweep's holes are flat and would leave this band in the fog)
+      if (sp > 0.08) seen({ x: 0.5, y: (L.lake.c.y + L.lake.r.y + L.home.y) / 2 }, f.aspect === 'wide' ? 0.12 : 0.46);
     }
     for (let s = 0; s < 12; s++) if (v.since[s] >= 0 && v.owners[s] === 0) seen(sitePos(L, p.seed, s, p.natSide), 0.14);
     // in the clear: what my bases and my army see now
