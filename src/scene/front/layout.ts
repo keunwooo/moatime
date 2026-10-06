@@ -60,8 +60,8 @@ export const LAYOUT: Record<AspectClass, FrontLayout> = {
   wide: {
     timer: [0.33, 0.26, 0.67, 0.62],
     lake: { c: { x: 0.5, y: 0.47 }, r: { x: 0.215, y: 0.16 } },
-    home: { x: 0.5, y: 0.865 },
-    homeR: { x: 0.15, y: 0.095 },
+    home: { x: 0.5, y: 0.87 },
+    homeR: { x: 0.125, y: 0.082 },
     nat: [
       { x: 0.235, y: 0.8 },
       { x: 0.765, y: 0.8 },

@@ -17,7 +17,7 @@ import { num } from '../../paint/color';
 import { clamp01, easeOut, hash01, sm, vis, type FrontFrame } from '../frame';
 import { depthScale, sitePos, type P } from '../layout';
 import { RACE_PAL } from '../palette';
-import { PX } from '../paint/kit';
+import { BUILDING_SCALE, PX } from '../paint/kit';
 import type { FrontTextures } from '../textures';
 
 /** Slot offsets on a plateau, in shares of its radii (back first, the front lane kept free). */
@@ -125,7 +125,7 @@ export class StructureSystem {
       const p = this.piece(key, race, kind);
       p.seen = frame;
       const art = this.tex.race[race].b[kind];
-      const s = (k * 1) / PX;
+      const s = (k * BUILDING_SCALE) / PX;
       p.root.position.set(x, y);
       p.root.zIndex = y;
       p.shadow.position.set(art.w * s * 0.06, 0);

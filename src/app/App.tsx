@@ -14,6 +14,7 @@ import { SceneCanvas } from './components/SceneCanvas';
 import { Summary } from './components/Summary';
 import { TimerPanel } from './components/TimerPanel';
 import { TopBar } from './components/TopBar';
+import { frontPrefs } from '../scene/front/prefs';
 
 const DevPanel = import.meta.env.DEV ? lazy(() => import('./components/DevPanel')) : null;
 
@@ -28,6 +29,8 @@ export function App() {
   const [confirmWar, setConfirmWar] = useState(false);
   const [announce, setAnnounce] = useState('');
   const firstVisit = state.world.bankedMs === 0 && !state.session;
+  // the front's scene reads its minimap setting from a tiny shared module
+  frontPrefs.minimap = state.settings.minimap;
 
   useEffect(() => {
     // a theme switch changes the UI colours at once; only the forest's night fades slowly
@@ -107,7 +110,7 @@ export function App() {
       return JSON.stringify([...envRows(theme, engine.getState().world.seed, W), ...detailRows(theme, simAt(theme, W), W)]);
     },
     details && status === 'running',
-    [details, theme, status, state.world.bankedMs, state.world.id],
+    [details, theme, status, state.world.bankedMs, state.world.id, state.world.front?.cur?.origin, state.world.cosmos?.origin],
   );
   const stats = useTicker(
     () => {
@@ -115,7 +118,7 @@ export function App() {
       return worldStats(theme, W, simAt(theme, W));
     },
     status === 'running',
-    [theme, state.world.bankedMs, state.world.id],
+    [theme, state.world.bankedMs, state.world.id, state.world.front?.cur?.origin, state.world.cosmos?.origin],
   );
 
   return (

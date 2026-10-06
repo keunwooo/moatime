@@ -38,6 +38,11 @@ export interface FrontFrame extends FrameInfo {
   /** Which stage is shown now, and the planet it shows. */
   stage: Stage;
   stagePlanet: number;
+  /** Where my army stands (map point) and other points in sight this frame (fights). */
+  rally?: P;
+  sight?: P[];
+  /** A developed planet shown for a battle there: no fog. */
+  allSeen?: boolean;
 }
 
 export const px = (f: { w: number; h: number }, p: P) => ({ x: p.x * f.w, y: p.y * f.h });

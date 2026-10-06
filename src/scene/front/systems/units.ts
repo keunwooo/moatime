@@ -12,7 +12,7 @@ import { HOME, NAT, planetWorks, workerTimes } from '../../../sim/front';
 import { armyArrival, flies, type ArmyKind, type UnitKind } from '../../../sim/frontPlan';
 import { clamp01, easeInOut, hash01, lerp, vis, type FrontFrame } from '../frame';
 import { depthScale, sitePos, type P } from '../layout';
-import { PX } from '../paint/kit';
+import { PX, UNIT_SCALE } from '../paint/kit';
 import type { FrontTextures } from '../textures';
 import type { StructureSystem } from './structures';
 
@@ -81,7 +81,8 @@ export class UnitSystem {
     this.pool = new Pool(layer, this.tex);
   }
 
-  private draw(race: RaceId, kind: UnitKind, x: number, y: number, k: number, pose: 0 | 1, facing: number, tint: number, alpha = 1) {
+  private draw(race: RaceId, kind: UnitKind, x: number, y: number, k0: number, pose: 0 | 1, facing: number, tint: number, alpha = 1) {
+    const k = k0 * UNIT_SCALE;
     const art = this.tex.race[race].u[kind][pose];
     const it = this.pool.next();
     const air = flies(race, kind);
@@ -99,7 +100,7 @@ export class UnitSystem {
     it.shadow.alpha = air ? 0.35 : 0.55;
   }
 
-  update(f: FrontFrame, st: StructureSystem, tint: number, hidden: (x: number, y: number) => boolean) {
+  update(f: FrontFrame, st: StructureSystem, tint: number, hidden: (x: number, y: number, mine: boolean) => boolean, pulled = 0, rivalPulled: [number, number] = [0, 0]) {
     const v = f.v;
     const planet = v.planet;
     const L = f.L;
@@ -150,7 +151,7 @@ export class UnitSystem {
         x = bx;
         y = by;
       }
-      if (hidden(x, y)) continue;
+      if (hidden(x, y, true)) continue;
       const pose = (Math.floor((A / 1000) * 3 + j) % 2) as 0 | 1;
       this.draw(v.race, 'worker', x, y, k, ph > 0.38 && ph < 0.56 ? 1 : pose, facing, tint);
       shownW++;
@@ -188,8 +189,8 @@ export class UnitSystem {
       const row = Math.floor(i / cols);
       const col = i % cols;
       // ranks: a slight stagger, facing the front (toward the lake's side)
-      let x = rally.x * f.w + (col - cols / 2 + 0.5) * 9.5 * rk + (row % 2) * 3 * rk;
-      let y = rally.y * f.h + row * 7 * rk - (air ? 6 * rk : 0);
+      let x = rally.x * f.w + (col - cols / 2 + 0.5) * 9.5 * UNIT_SCALE * rk + (row % 2) * 3 * rk;
+      let y = rally.y * f.h + row * 7 * UNIT_SCALE * rk - (air ? 6 * rk : 0);
       // a new unit walks out from the production building
       const idx = v.armyN - shown + i;
       const born = armyArrival(Math.max(0, idx));
@@ -202,10 +203,11 @@ export class UnitSystem {
           y = lerp(home.y + 8 * rk, y, e);
         }
       }
-      if (hidden(x, y)) continue;
+      // the slot is kept even when its unit is away fighting (the fight starts from here)
+      this.army.push({ kind, x, y, k: rk, air });
+      if (i < pulled || hidden(x, y, true)) continue;
       // idle: a little shuffle; in the offensive, marching in step
       const pose = (Math.floor(f.t * (march > 0.5 ? 2.2 : 0.6) + hash01(i, 9) * 4) % 2) as 0 | 1;
-      this.army.push({ kind, x, y, k: rk, air });
       this.draw(v.race, kind, x, y, rk, pose, side, tint);
     }
 
@@ -221,12 +223,12 @@ export class UnitSystem {
       const list: ArmyKind[] = [];
       for (const kind of ORDER) for (let i = 0; i < mix[kind]; i++) list.push(kind);
       const n = Math.min(MAX_RIVAL, list.length);
-      for (let i = 0; i < n; i++) {
+      for (let i = rivalPulled[s]; i < n; i++) {
         const row = Math.floor(i / 6);
         const col = i % 6;
-        const x = at.x * f.w + (col - 2.5) * 9 * k;
-        const y = at.y * f.h + row * 6.5 * k;
-        if (hidden(x, y)) continue;
+        const x = at.x * f.w + (col - 2.5) * 9 * UNIT_SCALE * k;
+        const y = at.y * f.h + row * 6.5 * UNIT_SCALE * k;
+        if (hidden(x, y, false)) continue;
         this.rivals[s].push({ kind: list[i], x, y, k, air: flies(race, list[i]) });
         const pose = (Math.floor(f.t * 0.5 + hash01(s, i) * 4) % 2) as 0 | 1;
         this.draw(race, list[i], x, y, k, pose, s === 0 ? 1 : -1, tint, 0.95);

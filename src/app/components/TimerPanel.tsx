@@ -58,8 +58,9 @@ export function TimerPanel({ state, firstVisit }: { state: Persisted; firstVisit
       const W = engine.worldTime();
       return statusLine(theme, status, simAt(theme, W), W, firstVisit);
     },
-    running,
-    [status, theme, state.world.bankedMs, state.world.id, firstVisit],
+    // the front's prologue turns its lines while the people is still to be chosen
+    running || (theme === 'front' && status === 'idle' && !state.world.front?.cur),
+    [status, theme, state.world.bankedMs, state.world.id, firstVisit, state.world.front?.cur?.origin],
   );
 
 

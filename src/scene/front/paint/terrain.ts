@@ -52,6 +52,8 @@ export function paintTerrain(spec: TerrainSpec): PaintCanvas {
   const fh = Math.max(36, Math.round(h / 4));
   const mottle = fbmField(planetSeed + 11, fw, fh, 7, 4);
   const edge = fbmField(planetSeed + 23, fw, fh, 14, 3);
+  // big, slow wobble of mesa rims and the shore (hand-drawn, not compass-drawn)
+  const wob = fbmField(planetSeed + 37, fw, fh, 5, 3);
   const sample = (f: Float32Array, x: number, y: number) => {
     const fx = Math.min(fw - 1, Math.max(0, (x / w) * fw));
     const fy = Math.min(fh - 1, Math.max(0, (y / h) * fh));
@@ -78,7 +80,7 @@ export function paintTerrain(spec: TerrainSpec): PaintCanvas {
     const dx = (x / w - m.c.x) / m.r.x;
     const dy = (y / h - m.c.y) / m.r.y;
     const d = Math.sqrt(dx * dx + dy * dy);
-    return d - 0.08 * (sample(edge, x, y) - 0.5);
+    return d - 0.26 * (sample(wob, x, y) - 0.5) - 0.06 * (sample(edge, x, y) - 0.5);
   };
   const lake = L.lake;
   const img = ctx.createImageData(w, h);
@@ -119,13 +121,14 @@ export function paintTerrain(spec: TerrainSpec): PaintCanvas {
       // the lake: dark water, a soft shore
       const lx = (x / w - lake.c.x) / lake.r.x;
       const ly = (y / h - lake.c.y) / lake.r.y;
-      const ld = Math.sqrt(lx * lx + ly * ly) - 0.06 * (sample(edge, x + 101, y + 7) - 0.5);
+      const ld = Math.sqrt(lx * lx + ly * ly) - 0.2 * (sample(wob, x + 101, y + 7) - 0.5) - 0.05 * (sample(edge, x + 101, y + 7) - 0.5);
       if (ld < 1.08) {
         if (ld < 1) {
-          const rip = sample(mottle, x * 1.7 + 40, y * 2.6);
-          c = mix(LAKE.deep, LAKE.water, smooth(0.0, 1.0, ld) * 0.6 + rip * 0.25);
-          c = mix(c, LAKE.shore, smooth(0.86, 1, ld) * 0.7);
-        } else c = mix(LAKE.shore, c, smooth(1, 1.08, ld));
+          // deep in the middle, a lighter shelf near the shore, slow ripples across
+          const rip = sample(edge, x * 0.6 + 40, y * 2.2);
+          c = mix(LAKE.deep, LAKE.water, smooth(0.2, 1.0, ld) * 0.7 + rip * 0.18);
+          c = mix(c, mix(LAKE.shore, pal.cliff, 0.25), smooth(0.84, 1, ld) * 0.75);
+        } else c = mix(mix(pal.cliff, LAKE.shore, 0.4), c, smooth(1, 1.08, ld));
       }
       // the sky band at the very top fades out
       if (y < top) c = mix(pal.sky1, c, smooth(top * 0.4, top, y));
@@ -171,6 +174,33 @@ export function paintTerrain(spec: TerrainSpec): PaintCanvas {
   stroke([home, nat], 10, 0.3);
   stroke([sites[5], rival[0]], 8, 0.24);
   stroke([sites[11], rival[1]], 8, 0.24);
+  ctx.restore();
+
+  // ---- rocks along the foot of every cliff, and a few long reflections on the lake ------------
+  for (const ms of mesas) {
+    const rr = new Rng(planetSeed ^ Math.round(ms.c.x * 1000));
+    for (let i = 0; i < 26; i++) {
+      const a = rr.range(0.05, 0.95) * Math.PI;
+      const x = (ms.c.x + Math.cos(a) * ms.r.x * rr.range(0.95, 1.08)) * w;
+      const y = (ms.c.y + Math.sin(a) * ms.r.y * rr.range(1.0, 1.12)) * h + rr.range(0, 4) * scale;
+      const k = (0.8 + 0.3 * (y / h)) * scale * rr.range(0.5, 1.15);
+      softEllipse(ctx, x + 2 * k, y + 1.5 * k, 6 * k, 2.2 * k, shade(pal.cliff, 0.5), 0.3, 0);
+      gouache(ctx, blobPoints(x, y - 2 * k, 5 * k, 3.6 * k, rr, { lumps: 0.25, flatBottom: 0.6 }), { base: vary(pal.cliff, rr), r: rr, dabDensity: 8, roundness: 0.8, grain: 0.3 });
+    }
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 14; i++) {
+    const x = (lake.c.x + r.range(-0.7, 0.7) * lake.r.x) * w;
+    const y = (lake.c.y + r.range(-0.6, 0.7) * lake.r.y) * h;
+    const len = r.range(30, 90) * scale;
+    ctx.strokeStyle = css(LAKE.mote, r.range(0.03, 0.07));
+    ctx.lineWidth = r.range(1, 2.4) * scale;
+    ctx.beginPath();
+    ctx.moveTo(x - len / 2, y);
+    ctx.lineTo(x + len / 2, y);
+    ctx.stroke();
+  }
   ctx.restore();
 
   // ---- the planet's own scatter ------------------------------------------------------------

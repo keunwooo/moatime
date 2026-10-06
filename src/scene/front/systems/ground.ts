@@ -27,6 +27,10 @@ export class GroundSystem {
   tint = 0xffffff;
   /** Darkness 0..1 (night), read by lights. */
   night = 0;
+  /** The painted ground on view (the minimap shows it too). */
+  get texture(): Texture | null {
+    return this.sprite.texture ?? null;
+  }
 
   constructor(private tex: FrontTextures, lowPower: boolean) {
     this.root.addChild(this.sprite, this.lake, this.crystals);
@@ -49,7 +53,7 @@ export class GroundSystem {
     }
   }
 
-  update(f: FrontFrame, planetIdx: number) {
+  update(f: FrontFrame, planetIdx: number, eclipse = 0) {
     const { w, h, L } = f;
     const p = f.v.planet.idx === planetIdx ? f.v.planet : f.v.planet;
     // the ground for this planet and this viewport (painted at most at 1600 px wide)
@@ -67,7 +71,7 @@ export class GroundSystem {
 
     // the planet's day: warm at dusk and dawn, a cool moonlit blue at night
     const d = f.env.day;
-    const nightW = d.sky[0];
+    const nightW = Math.max(d.sky[0], eclipse * 0.85);
     const twi = d.sky[1] + d.sky[3];
     let c: RGB = [255, 255, 255];
     c = mix(c, DUSK, twi * 0.35);

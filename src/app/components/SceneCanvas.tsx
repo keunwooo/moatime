@@ -78,7 +78,11 @@ export function SceneCanvas({ theme, reducedMotion, cameraLock, lowPower, effect
         host.devRenderNow();
         return host.devInfo();
       };
-      (window as unknown as { __moa: unknown }).__moa = { host, engine, zoom, at, sim, sight, headline, battle, war };
+      // the front's art, all pieces of a people on one page (dynamically loaded, dev only)
+      const gallery = async (race: 0 | 1 | 2 = 0, scale = 1.5) => (await import('../../scene/front/gallery')).showGallery(race, scale);
+      // the front's schedule (planets, milestones) for inspection
+      const front = () => import('../../sim/front');
+      (window as unknown as { __moa: unknown }).__moa = { host, engine, zoom, at, sim, sight, headline, battle, war, gallery, front };
     }
     void host.init(theme);
     const off = engine.onEvent((e) => {

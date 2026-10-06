@@ -13,6 +13,12 @@ import { css, lighten, mix, shade, type RGB } from '../../paint/color';
 
 /** Canvas px per art unit (art is drawn back at 1/PX of its canvas size). */
 export const PX = 2;
+/**
+ * On-screen size of units and of buildings relative to their art units (at 820 px of height and
+ * depth 1): units are drawn larger than the buildings' scale so fights read on the full map.
+ */
+export const UNIT_SCALE = 1.5;
+export const BUILDING_SCALE = 1.1;
 
 /** A painted piece and its anchor (the ground contact point, canvas px). */
 export interface Art {
@@ -276,7 +282,7 @@ export function ring(pen: Pen, cx: number, cy: number, rx: number, ry: number, c
   ctx.restore();
 }
 
-/** Reveals only the lowest `u` share of an art piece's height (a building going up). */
+/** A seeded Rng from a few numbers. */
 export function seedRng(...xs: number[]): Rng {
   let h = 2166136261;
   for (const x of xs) h = Math.imul(h ^ (x | 0), 16777619);
